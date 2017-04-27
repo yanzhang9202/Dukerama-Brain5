@@ -1,0 +1,45 @@
+//
+//  CameraTrackable.h
+//  
+//
+//  Created by Alex Zhu on 9/11/13.
+//
+//
+
+#ifndef ____CameraTrackable__
+#define ____CameraTrackable__
+
+#include <std_msgs/Float64.h>
+#include <ros/ros.h>
+#include <iostream>
+
+#include <Eigen/Dense>
+
+class CameraTrackable{
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW; // Added by Yan Zhang on 10th Aug, 2015
+    CameraTrackable();
+    CameraTrackable copy();
+    ros::Time getTimeStamp();
+    Eigen::Vector3d getPosition();
+    Eigen::Matrix3d getRotation();
+    Eigen::Vector3d getCameraPosition();
+    Eigen::Matrix3d getCameraRotation();
+    Eigen::Vector4d getQuaternion();
+    void setRobotPosition(Eigen::Vector3d position_in);
+    void setRobotRotation(Eigen::Matrix3d rotation_in);
+    bool isUpdated();
+    void setOrientation(ros::Time stamp, Eigen::Vector3d pos, Eigen::Matrix3d rot, Eigen::Vector4d quat);
+    void updateAngle(std_msgs::Float64 angle);
+    
+protected:
+    Eigen::Vector3d position_shift;
+    Eigen::Vector3d position;
+    Eigen::Vector4d quaternion;
+    Eigen::Matrix3d rotation;
+    ros::Time timestamp;
+    double servo_angle;
+    bool updated;
+};
+
+#endif /* defined(____Trackable__) */

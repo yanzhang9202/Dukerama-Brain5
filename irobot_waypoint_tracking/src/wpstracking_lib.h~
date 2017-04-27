@@ -1,0 +1,40 @@
+#ifndef wpstracking_lib_H
+#define wpstracking_lib_H
+
+#include <ros/ros.h>
+#include <iostream>
+#include <fstream>
+
+#include <Eigen/Dense>
+#include <geometry_msgs/Point.h>
+
+int wps_count = 0;
+int all_sent = 0;
+int wps_heard = 0;
+int tgt_heard = 0;
+
+int wps_request = 0;
+geometry_msgs::Point rqst_msg;
+
+int wps_done = 0;
+
+ros::Subscriber wps_sub;
+
+ros::Subscriber target_sub;
+
+ros::Publisher wps_rqst_pub;
+
+ros::Subscriber all_sent_sub;
+
+Eigen::VectorXf waypoint(3), goal_target(3);
+
+void waitForEnter();
+
+void WpsCallback(const geometry_msgs::Point msg);
+void TargetCallback(const geometry_msgs::Point msg);
+void AllSentCallback(const geometry_msgs::Point msg);
+
+void SendRequest();
+void SendiHeardyou();
+
+#endif  // __wpstracking_lib_H

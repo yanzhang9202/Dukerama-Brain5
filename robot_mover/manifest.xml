@@ -1,0 +1,17 @@
+<package>
+  <description brief="robot_mover">
+
+     robot_mover
+
+  </description>
+  <author>Duke RAMA Lab</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/robot_mover</url>
+  <depend package="geometry_msgs"/>
+  <depend package="rospy"/>
+  <depend package="roscpp"/>
+
+</package>
+
+

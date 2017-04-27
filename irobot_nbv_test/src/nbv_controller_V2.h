@@ -1,0 +1,132 @@
+#ifndef ___NBV_CONTROLLER_V2_H___
+#define ___NBV_CONTROLLER_V2_H___
+
+#include <ros/ros.h>
+#include <iostream>
+#include <fstream>
+#include <geometry_msgs/TransformStamped.h>
+#include <Eigen/Dense>
+//#include <Eigen/SVD>
+#include <string.h>
+#include <math.h>
+
+#include "target.cpp"
+#include "nbv_def.h"
+
+class nbv_controller{
+private:
+	void getUpdate(std::vector<target *> input);
+	void getCameraCalib();
+	void getCameraUncertainty();
+	void vrpnCallback(const geometry_msgs::TransformStamped msg);
+	void findObjective(std::vector<bool> flag);
+	Eigen::Vector2f getRelativePosition(Eigen::Matrix2f R, Eigen::Vector2f r, Eigen::Vector3f global);
+
+	std::vector<target *> targets;
+	Eigen::Matrix3f Uk;
+	Eigen::Vector3f pk;
+
+	float downsample;
+	float flength, bline;
+	Eigen::Vector2f cc_left, cc_right;
+	Eigen::Matrix4f Hc2m_left, Hc2m_right;
+	Eigen::Matrix3f Rot_c2h, Rot_h2w, Rot_c2w, Rot_w2c;
+	Eigen::Vector4f q_h;
+	Eigen::Vector3f ocam_hand, ohand_world, ocam_world;
+	Eigen::Matrix3f Q3d;
+	Eigen::Matrix2f Q;
+
+	float wi, fov, alphaq, c;
+
+	ros::Subscriber vrpn_sub;
+	int num_targets;
+	Objective objective;
+	string supreme, central, choice;
+	int which_target;
+	int count_meas;
+
+	int dim;
+
+	// NBV in relative control frame
+	Eigen::Vector2f getNBVinRF();
+	Eigen::Vector2f relUpdate(Eigen::Vector2f p_star, Eigen::Matrix2f V);
+	void evalFuncGrad(Eigen::Vector2f p, Eigen::Matrix2f V, bool eval_dh);
+	Eigen::Vector2f measure_pixel(Eigen::Vector2f p);
+	Eigen::Matrix2f observeCov(Eigen::Vector2f pixels);
+	Eigen::Vector2f calc_DJQJ_p(Eigen::Vector2f p, Eigen::Matrix2f mCov, Eigen::Matrix2f Xi, Vector2f pixels);
+
+	int it_max;
+	Eigen::Matrix2f relgains;
+	float val;
+	Eigen::Vector2f dh;
+
+	// NBV in global control frame
+	void getNBVinGF(Eigen::Vector2f p_star);
+	void glob_setup(Eigen::Vector2f p_star);
+	void glblUpdate();
+	void glbl(Eigen::Vector2f r, Eigen::Matrix2f R, bool eval_grad);
+	Eigen::Matrix2f gradflow(Eigen::Vector2f r, Eigen::Matrix2f R);
+	void calc_dpsihat_dR(Eigen::Vector2f r, Eigen::Matrix2f R);
+	bool checkSkewSymm(Eigen::Matrix2f M);
+	void posegoal(Eigen::Vector2f r, Eigen::Vector2f goal_r, bool eval_grad);
+	void rotgoal(Eigen::Matrix2f R, Eigen::Vector2f y, Eigen::Vector2f n, bool eval_grad);
+	void penfunc(Eigen::Vector2f r, Eigen::Matrix2f R, bool eval_grad);
+	void barr(bool eval_grad);
+	void phi_chain2global(Eigen::Matrix2f R);
+	void calc_grad_fov_r();
+
+	Eigen::Vector2f goal_r, newDir, oldDir;
+	float val_obj_r, val_obj_R, val_glob;
+	Eigen::MatrixXf phi, pen_phi;
+	Eigen::Vector2f dpsi_dr;
+	Eigen::Matrix2f dpsi_dR;
+	Eigen::MatrixXf p;
+	Eigen::MatrixXf dphix_dpx, dphix_dpy, dphix_dpz, dphiy_dpx, dphiy_dpy, dphiy_dpz, dphiz_dpx, dphiz_dpy, dphiz_dpz;
+	Eigen::MatrixXf dpen_phi;
+	Eigen::Vector2f e1, e2;
+	Eigen::MatrixXf dphix_dr, dphiy_dr, dphiz_dr;
+	Eigen::Vector2f gradx, grady, gradz, grad;
+	Eigen::Vector2f dpsihat_dr;
+	std::vector<Matrix2f> dpx_dR, dpy_dR, dpz_dR;
+	std::vector<Vector3f> z;
+	std::vector<Vector2f> zi;
+	std::vector<Matrix2f> dphix_dR, dphiy_dR, dphiz_dR;
+	Eigen::Matrix2f penGrad;
+	Eigen::Matrix2f dpsihat_dR;
+	Eigen::Matrix2f k1, k2, k3, k4;
+	Eigen::Vector2f r_upd;
+	Eigen::Matrix2f R_upd;
+
+	// Translate to motion controller language
+	void calcOrder();
+
+	// Simulation
+	bool sim;
+	bool show_iter;
+
+	Eigen::Vector2f r_sim_2d;
+	Eigen::Matrix2f R_sim_2d;
+	Eigen::Matrix2f matrix2d(int index1, int index2, Eigen::Matrix3f mat);
+
+	// Record position
+	std::ofstream outfile_pose;
+	
+public:
+	nbv_controller(ros::NodeHandle &nh, int num_t, int ds, string obj, bool simu, int dimen);
+	void calcNBV(std::vector<target *> input, std::vector<bool> flag);
+
+	Eigen::Vector2f r_new;
+	Eigen::Matrix2f R_new;
+
+	Eigen::Vector2f r_hand;
+	Eigen::Matrix2f R_hand;
+
+	// Simulation
+	void getSimPose(Eigen::Vector2f r_input, Eigen::Matrix2f R_input);
+	void waitForEnter();
+
+	// Record pose
+	void recordPose();
+};
+
+#endif

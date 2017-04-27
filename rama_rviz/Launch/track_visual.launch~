@@ -1,0 +1,11 @@
+<launch>
+
+  <param name="/Brain4Camera/vrpn_server_ip" value="192.168.1.103"/>
+  <!-- ros_vrpn_client -->
+  <node pkg="ros_vrpn_client" type="ros_vrpn_client" name="$(optenv MYSELF Brain4Camera)" required="true"/>
+
+  <!-- rama_rviz -->
+  <node pkg="rama_rviz" type="track_visual" name="track_visual" required="true" >
+  </node>
+
+</launch>

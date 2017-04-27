@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/alex/catkin_ws/src/ros_vrpn_client/build/devel/setup.sh

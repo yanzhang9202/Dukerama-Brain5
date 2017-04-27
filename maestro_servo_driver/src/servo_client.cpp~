@@ -1,0 +1,38 @@
+#include <ros/ros.h>
+#include <iostream>
+#include <maestro_servo_driver/MaestroServerAction.h>
+#include <actionlib/client/simple_action_client.h>
+#include "maestro_serial_driver.cpp"
+
+typedef actionlib::SimpleActionClient<maestro_servo_driver::MaestroServerAction> Client
+
+int main(int argc, char**argv)
+{
+  ros::init(argc,argv,"maestro_servo_client");
+  ros::NodeHandle n;
+
+  Client client("servo_server", true);
+  client.waitForServer();
+  maestro_servo_driver::MaestroServerGoal goal;
+  
+  double pulse_width = 1800;
+  goal.servo_target = pulse_width * 4;
+
+  client.sendGoal(goal);
+  client.waitForResult(ros::Duration(3.0));
+
+  if (cilent.getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+  {
+    ROSINFO("Goal finished!");
+    printf("Current State: %s\n", client.getState().toString().c_str());
+  }
+
+  int position = maestroGetPosition(fd, 0);
+  printf("Current position is %d.\n", position);
+//  int target = (position < 5900) ? 7000 : 5000;
+//  printf("Setting target to %d (%d us).\n", target, target/4);
+//  maestroSetTarget(fd, 0, target);
+
+  close(fd);
+  return 0;
+}

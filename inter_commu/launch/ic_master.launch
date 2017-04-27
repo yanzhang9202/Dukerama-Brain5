@@ -1,0 +1,7 @@
+<launch>
+  <param name="/robot/name" value="Brain5"/>
+
+  <!-- ic_master -->
+  <node pkg="inter_commu" type="ic_master" name="ic_master" required="true" output="screen"/>
+
+</launch>

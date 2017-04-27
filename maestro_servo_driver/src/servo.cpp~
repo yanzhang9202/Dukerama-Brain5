@@ -1,0 +1,34 @@
+#include <ros/ros.h>
+#include <iostream>
+#include "maestro_serial_driver.cpp"
+
+int main(int argc, char**argv)
+{
+  ros::init(argc,argv,"maestro_serial_driver");
+  ros::NodeHandle n;
+
+  // Open the Maestro's virtual COM port.
+  const char * device = "/dev/ttyACM0"; // Linux
+  int fd = open(device, O_RDWR | O_NOCTTY);
+  if (fd == -1)
+  {
+    perror(device);
+    return 1;
+  }
+
+  struct termios options;
+  tcgetattr(fd, &options);
+  options.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+  options.c_oflag &= ~(ONLCR | OCRNL);
+  tcsetattr(fd, TCSANOW, &options);
+
+   
+
+  int position = maestroGetPosition(fd, 0);
+  printf("Current position is %d.\n", position);
+  int target = (position < 5900) ? 7000 : 5000;
+  printf("Setting target to %d (%d us).\n", target, target/4);
+  maestroSetTarget(fd, 0, target);
+  close(fd);
+  return 0;
+}

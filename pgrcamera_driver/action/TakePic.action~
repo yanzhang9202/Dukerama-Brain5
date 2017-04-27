@@ -1,0 +1,8 @@
+# Define the goal
+bool acquire #Not necessary
+---
+# Define the result
+bool finished
+---
+# Define a feedback message
+int32 percent_complete

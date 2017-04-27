@@ -1,0 +1,6 @@
+<launch>
+
+  <!-- maestro_servo_driver -->
+  <node pkg="maestro_servo_driver" type="maestro_servo_publisher" name="maestro_servo_publisher" required="true"/>
+
+</launch>

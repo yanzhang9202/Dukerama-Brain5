@@ -1,0 +1,11 @@
+# Define the goal
+bool acquire #Not necessary
+---
+# Define the result
+sensor_msgs/Image image_left
+sensor_msgs/Image image_right
+sensor_msgs/CameraInfo camera_info_left
+sensor_msgs/CameraInfo camera_info_right
+---
+# Define a feedback message
+int32 percent_complete

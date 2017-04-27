@@ -1,0 +1,9 @@
+#ifndef ___DEFINITION_H___
+#define ___DEFINITION_H___
+
+#define num_robot 3
+#define num_nodes 3
+
+#define tol 0.1
+
+#endif

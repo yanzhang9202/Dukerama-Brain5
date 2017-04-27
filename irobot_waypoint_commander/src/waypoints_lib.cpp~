@@ -1,0 +1,29 @@
+#ifndef ___WPSLIB_cpp
+#define ___WPSLIB_cpp
+
+#include "waypointslib.h"
+
+// Read matrix in \include\Waypoints.txt file. The matrix should be like this:
+// 1.000 0.000 0.000
+// 0.000 1.000 0.000
+ 
+void loadWaypoints()
+{
+  int line, col;
+  ifstream file(filename_wps);
+  
+  if (!file){
+    std::cout << "No Waypoints.txt file in the include folder!\n";
+    return; 
+  }
+
+  for(line = 0; line < num_wps; line++){
+    for (col = 0; col < 3; col++){
+      file >> Waypoints[line][col];
+    }
+  }
+  
+  file.close();
+}
+
+#endif

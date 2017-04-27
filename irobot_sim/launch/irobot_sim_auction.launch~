@@ -1,0 +1,7 @@
+<launch>
+  <param name="/robot/name" value="Brain5"/>
+
+  <!-- irobot_sim -->
+  <node pkg="irobot_sim" type="irobot_sim_auction" name="irobot_sim_auction" required="true" output="screen"/>
+
+</launch>

@@ -1,0 +1,182 @@
+#include <ros/ros.h>
+#include <iostream>
+#include "maestro_serial_driver.cpp"
+
+#include <Eigen/Dense>
+#include <geometry_msgs/Point.h>
+#include <geometry_msgs/TransformStamped.h>
+
+#include <stdio.h>
+#include <math.h>
+
+#include <geometry_msgs/Twist.h>
+
+#define PI 3.14159265
+
+int wpt_request = 1;
+int wpt_done = 1;
+
+float servo_position;
+
+Eigen::VectorXf q_h(4), ocam_hand(3), ocam_world(3), ohand_world(3), tgt_world(3), tgt_cam(3);
+Eigen::Matrix3f Rot_h2w, Rot_c2h, Rot_c2w, Rot_w2c;
+
+// Request cooperate with robot base, publish on "/cmd_vel" topic
+ros::Publisher base_pub;
+ros::Publisher claim_control_pub;
+
+geometry_msgs::Twist  u_msg;
+geometry_msgs::Point  claim_control_msg;
+
+void vrpnCallback(const geometry_msgs::TransformStamped msg);
+void servoCallback(const geometry_msgs::Point msg);
+void stateCallback(const geometry_msgs::Point msg);
+void targetCallback(const geometry_msgs::Point msg);
+
+int main(int argc, char** argv)
+{
+  ros::init(argc, argv, "waypoint_servo_node");
+  ros::NodeHandle n;
+
+  ros::Subscriber robot_state_sub = n.subscribe("robot/state", 1, stateCallback);
+//  ros::Subscriber robot_target_sub = n.subscribe("robot/target", 1, targetCallback);
+  ros::Subscriber robot_vrpn_sub = n.subscribe("Brain5Camera/pose", 1, vrpnCallback);
+  ros::Subscriber robot_servo_sub = n.subscribe("servo_position", 1, servoCallback);
+
+  base_pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
+  claim_control_pub = n.advertise<geometry_msgs::Point>("servo/claim_control", 1);
+
+  Rot_c2h << -0.2113,  0.0064, -0.9774,
+              0.9772, -0.0199, -0.2114,
+             -0.0208, -0.9998, -0.0020; 
+
+  ocam_hand << -0.0611257, -0.0234336, 0.0047033;
+
+  tgt_world << -0.375676, -0.120136, 0.221676;
+
+  claim_control_msg.x = 0;
+
+//  printf("Please wait for base driver being connected...\n");
+//  char enter;
+//  std::cin >> enter;
+
+  while( ros::ok() ){
+    ros::spin();
+  }
+
+  return 0;
+}
+
+void stateCallback(const geometry_msgs::Point msg)
+{
+  wpt_request = msg.x;
+  wpt_done = msg.y;
+}
+
+void vrpnCallback(const geometry_msgs::TransformStamped msg){
+// Should add a condition that tgt_world data is valid;
+  if (1)
+//  if (wpt_request==0 && wpt_done==0)
+  {
+    q_h[0] =msg.transform.rotation.x;
+    q_h[1] =msg.transform.rotation.y;
+    q_h[2] =msg.transform.rotation.z;
+    q_h[3] =msg.transform.rotation.w;
+  
+    Eigen::Quaternionf quat_h(q_h[3], q_h[0], q_h[1], q_h[2]);
+
+    Rot_h2w = quat_h.matrix();
+    Rot_c2w = Rot_h2w * Rot_c2h;
+    Rot_w2c = Rot_c2w.transpose();
+
+    ohand_world[0] = msg.transform.translation.x;
+    ohand_world[1] = msg.transform.translation.y;
+    ohand_world[2] = msg.transform.translation.z;
+
+    ocam_world = ocam_hand + ohand_world;
+    tgt_cam = Rot_w2c * (tgt_world - ocam_world);
+
+//    std::cout << tgt_cam << "\n" << std::endl;
+
+//    std::cout << tgt_cam[0] << "\n";
+//    std::cout << atan2(-tgt_cam[0], tgt_cam[2])/PI*180 << "\n";
+    float error_angle = atan2(-tgt_cam[0], tgt_cam[2])/PI*180;
+
+    if (fabs(error_angle) > 1)
+    {  
+      int servo_delta = round(error_angle/180*2000);
+
+      if (error_angle > 0)
+      {
+        if ((servo_position + servo_delta/4)>1900)
+        {
+          printf("Servo : Request an impossible position %f, I'm controlling the base.\n", servo_position + servo_delta/4);
+          u_msg.linear.x = 0;
+          u_msg.angular.z = 1.0;
+          base_pub.publish(u_msg);
+          ros::Duration(1.0).sleep();
+          u_msg.angular.z = 0;
+          base_pub.publish(u_msg);
+          claim_control_msg.x = 1;
+          claim_control_pub.publish(claim_control_msg);
+        }
+        else
+        {
+          if (claim_control_msg.x == 1)
+          {
+            claim_control_msg.x = 0;
+            claim_control_pub.publish(claim_control_msg);
+          }
+          float servo_target = servo_position*4 + servo_delta;
+	  std::cout << error_angle << "\n";
+          int fd = maestroConnect();
+          maestroSetTarget(fd, 0, servo_target);
+          close(fd);
+        } 
+      }
+
+      if (error_angle < 0)
+      {
+        if ((servo_position + servo_delta/4)<1100)
+        {
+          printf("Servo : Request an impossible position %f, I'm controlling the base.\n", servo_position + servo_delta/4);
+          u_msg.linear.x = 0;
+          u_msg.angular.z = -1.0;
+          base_pub.publish(u_msg);
+          ros::Duration(1.0).sleep();
+          u_msg.angular.z = 0;
+          base_pub.publish(u_msg);
+          claim_control_msg.x = 1;
+          claim_control_pub.publish(claim_control_msg);
+        }
+        else
+        {
+          if (claim_control_msg.x == 1)
+          {
+            claim_control_msg.x = 0;
+            claim_control_pub.publish(claim_control_msg);
+          }
+          float servo_target = servo_position*4 + servo_delta;
+          std::cout << error_angle << "\n";
+          int fd = maestroConnect();
+          maestroSetTarget(fd, 0, servo_target);
+          close(fd);
+        } 
+      }
+    }
+  }
+}
+
+void servoCallback(const geometry_msgs::Point msg)
+{
+  servo_position = msg.x;
+}
+
+void targetCallback(const geometry_msgs::Point msg)
+{
+  tgt_world(0) = msg.x;
+  tgt_world(1) = msg.y;
+  tgt_world(2) = msg.z;
+//  std::cout << "I heard" << tgt_world << "\n";
+}
+

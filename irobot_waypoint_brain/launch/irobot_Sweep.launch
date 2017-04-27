@@ -1,0 +1,33 @@
+<launch>
+  <param name="/robot/name" value="Brain5"/>
+
+  <param name="/Brain5Camera/vrpn_server_ip" value="192.168.1.103"/>
+  <!-- ros_vrpn_client -->
+  <node pkg="ros_vrpn_client" type="ros_vrpn_client" name="$(optenv MYSELF Brain5Camera)" required="true"/>
+
+  <!-- maestro_servo_driver -->
+  <node pkg="maestro_servo_driver" type="adjustOrientation" name="adjustOrientation" required="true" output="screen"/>
+
+  <!-- maestro_servo_driver -->
+  <!--
+  <node pkg="maestro_servo_driver" type="maestro_servo_publisher" name="maestro_servo_publisher" required="true"/>
+  -->
+
+  <!-- irobot_create_2_1 -->
+  <node pkg="irobot_create_2_1" type="driver.py" name="driver" output="screen">
+  </node>
+
+  <!-- irobot_waypoint_brain -->
+  <node pkg="irobot_waypoint_brain" type="irobot_Sweep" name="irobot_Sweep" required="true" output="screen"/>
+
+  <!-- pgrcamera_driver -->
+  <param name="/brain5_camera_driver/left_cam_url" value="file://$(find pgrcamera_driver)/include/left_Brain5_oct26.yaml" /> 
+  <param name="/brain5_camera_driver/right_cam_url" value="file://$(find pgrcamera_driver)/include/right_Brain5_oct26.yaml"/> 
+  <node pkg="pgrcamera_driver" type="basic_camera_driver" name="basic_camera_driver" required="true"/>
+
+  <!--stereo_image_proc-->  
+  <node pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" ns="Brain5" required="true">
+        <param name="approximate_sync" type="bool" value="true"/>
+  </node>
+
+</launch>

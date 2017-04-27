@@ -1,0 +1,100 @@
+#include "sim_lib_auction.cpp"
+
+int main(int argc, char **argv)
+{
+  ros::init(argc, argv, "Brain5_sim_auction");
+  ros::NodeHandle n;
+
+  std::string robotname, temp, result;
+  n.getParam("/robot/name", robotname);
+
+  rama_commander commander;
+//  rama_robot robot;
+  commander.loadAuctionTargets();
+  commander.loadAuctionEntryList();
+  commander.loadAuctionWaypointList();
+
+  commander.showEntryList();
+  commander.showWaypointList(3, 11);
+
+  printf("Robot: Hi, I am %s ...\n", robotname.c_str());
+
+  result = robotname + "/record";
+  robot_record_pub = n.advertise<std_msgs::Float32MultiArray>(result.c_str(), 1);
+  result = robotname + "/request_peer_backup";
+  robot_reqbackup_pub = n.advertise<std_msgs::Bool>(result.c_str(), 1);
+  result = robotname + "/backup_choice";
+  robot_backup_pub = n.advertise<std_msgs::Float32MultiArray>(result.c_str(), 1);
+
+  peer_record_sub = n.subscribe("Brain4/record", 1, &rama_commander::peerRecordCallback, &commander);
+  peer_reqbackup_sub = n.subscribe("Brain4/request_peer_backup", 1, &rama_commander::peerReqBackupCallback, &commander);
+  peer_backup_sub = n.subscribe("Brain4/backup_choice", 1, &rama_commander::peerBackupCallback, &commander);
+
+//  printf("Robot : Please press 'any key + enter' to start the waypoint tracking...\n");
+//  robot.waitForEnter();
+
+  int robot_wpt_count = 0;
+
+  // Clear visit_history
+  my_visit_history.setZero();
+  peer_visit_history.setZero();
+
+  int iii;
+  for (iii = 0; iii < NUM_TARGET; iii++)
+  {
+    available_target_list[iii] = true;
+  }
+
+  next_waypointlist_set = false;
+//  auction_done = false; // Everytime set auction_done to 0, two robots will choose nearest target and auction.
+  current_target_done = true;
+  robot_working_state = 1; // Set robot to "transit" state;
+
+  while(ros::ok() && (robot_working_state != 3))
+  {
+    if (current_target_done)
+    {
+      if (next_waypointlist_set)
+      { commander.Next2CurrentWaypointList(); }
+      else
+      {
+        robot_working_state = 1; // Set robot to "transit" state;
+        propose_auction = true; reach_agreement = false; // Here is start of the mission or finish of the last mission.
+//        while (propose_auction && ~reach_agreement)
+//        {
+//          commander.generateOcamPosition();
+//          robot_working_state = 1; // Set robot to "transit" state;
+//          commander.chooseAuctionWaypointList(propose_auction); // Here find the nearest target, calculate bids, publish to peers, peers publish back, reach agreement.
+//        }
+        commander.generateOcamPosition();
+        robot_working_state = 1; // Set robot to "transit" state;
+        commander.chooseAuctionWaypointList(propose_auction);
+      }
+    }
+
+     commander.sendAuctionWaypoint();
+
+//  In real case, here according to robot_working_state "transit"(1) or "busy"(2), choose different PID strategy. 
+//    robot.adjustOrientation(); // There is a while() in this function, and ros::spinOnce in while(); During this function, Brain5 subscribes to Brain4's visit_history.
+//                               // The visit history callback function calculate's next entry and target, put bids, publish to Brain5 and set next waypoint for itself.
+
+//  In simulation, show which waypoint is heading to, wait for some time, show robot is there.
+//  In simulation, according to robot_working_state, change ocam_world or last_wayponit_in_current_list for finding nearest entry when receiving acution request from peer robot.
+    commander.generateOcamPosition();
+
+//  take image here
+
+
+//  Record Position here
+    commander.recordSimPosition();
+
+    commander.nextAuctionWaypoint();
+//    robot_wpt_count++;
+  }
+
+  printf("Commander : Job finished!\n");
+  return 0;
+}
+
+
+

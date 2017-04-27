@@ -1,0 +1,14 @@
+<launch>
+
+  <param name="/Brain5Camera/vrpn_server_ip" value="192.168.1.103"/>
+  <!-- ros_vrpn_client -->
+  <node pkg="ros_vrpn_client" type="ros_vrpn_client" name="$(optenv MYSELF Brain5Camera)" required="true"/>
+
+  <!-- irobot_create_2_1 -->
+  <node pkg="irobot_create_2_1" type="driver.py" name="brain4driver" output="screen">
+  </node>
+
+  <!-- tool_basecalib -->
+  <node pkg="tool_basecalib" type="tool_basecalib" name="tool_basecalib" required="true" output="screen"/>
+
+</launch>

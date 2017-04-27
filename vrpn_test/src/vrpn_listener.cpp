@@ -1,0 +1,66 @@
+#ifndef ___VRPN_LISTENER_CPP___
+#define ___VRPN_LISTENER_CPP___
+
+#include "vrpn_listener.h"
+
+using namespace std;
+using namespace Eigen;
+
+// ******************** Public ********************** //
+
+vrpn_listener::vrpn_listener(ros::NodeHandle &nh, string name):
+outfile_vrpn("/home/dukerama/hydro_catkin/src/vrpn_test/include/pose.txt"){
+	cout << "Initialize vrpn listener..." << endl;
+
+	string topicname = name + "/pose";
+	vrpn_sub = nh.subscribe<geometry_msgs::TransformStamped>(topicname.c_str(), 1, &vrpn_listener::vrpnCallback, this);
+
+	quaternion = Vector4f::Zero();
+	position = Vector3f::Zero();
+
+	record_interval = 0.5; // unit: s
+	record_current_time = ros::Time::now().toSec();
+	display_interval = 0.5;	// unit: s
+	display_current_time = ros::Time::now().toSec();
+}
+
+// ******************** Private ******************** //
+
+void vrpn_listener::vrpnCallback(const geometry_msgs::TransformStamped msg){
+	// receive data
+	quaternion[0] =msg.transform.rotation.x;
+	quaternion[1] =msg.transform.rotation.y;
+	quaternion[2] =msg.transform.rotation.z;
+	quaternion[3] =msg.transform.rotation.w;
+
+	position[0] = msg.transform.translation.x;
+	position[1] = msg.transform.translation.y;
+	position[2] = msg.transform.translation.z;	
+}
+
+void vrpn_listener::recordData(){
+	if (ros::Time::now().toSec() - record_current_time > record_interval){
+		for (int i = 0; i < 4; i++){
+			outfile_vrpn << quaternion[i] << " ";
+		}
+		for (int i = 0; i < 3; i++){
+			outfile_vrpn << position[i] << " ";
+		}
+		outfile_vrpn << "\n";
+		record_current_time = ros::Time::now().toSec();
+	}
+}
+
+void vrpn_listener::closeFile(){
+	outfile_vrpn.close();
+}
+
+void vrpn_listener::displayData(){
+	if (ros::Time::now().toSec() - display_current_time > display_interval){
+		cout << "quaternion: " << quaternion.transpose() << endl << endl;
+		cout << "position: " << position.transpose() << endl << endl;
+		display_current_time = ros::Time::now().toSec();
+	}
+}
+
+#endif

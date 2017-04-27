@@ -1,0 +1,146 @@
+#ifndef _TARGETCPP_
+#define _TARGETCPP_
+
+#include <Eigen/Dense>
+#include "target.h"
+#include <iostream>
+using namespace Eigen;
+using namespace std;
+
+target::target(double b_in, double f_in,double framerate_in){
+  b=b_in;
+  f=f_in;
+  ol2=0.25;
+  or2=0.25;
+  oy2=0.25;
+    
+  Vector3d variances;
+  variances << ol2,or2,oy2;
+  Q = variances.asDiagonal();
+
+  H=Matrix<double,3,9>::Zero();
+  H(0,0)=1;
+  H(1,1)=1;
+  H(2,2)=1;
+
+  phi=Matrix<double,9,9>::Zero();
+  phi(0,0)=1;
+  phi(1,1)=1;
+  phi(2,2)=1;
+
+  K=Matrix<double,9,3>::Zero();
+
+  framerate=4;//framerate_in;
+
+
+  //W=Matrix<double,9,9>::Zero();
+
+  for (int i=0;i<3;i++){
+    for (int j=0;j<3;j++){
+      W(i,j)=pow(framerate,5)/20; 
+      W(i,3+j)=pow(framerate,4)/8;
+      W(3+i,j)=pow(framerate,4)/8;
+      W(3+i,3+j)=pow(framerate,3)/3;
+      W(6+i,j)=pow(framerate,3)/6;
+      W(i,6+j)=pow(framerate,3)/6;
+      W(6+i,3+j)=framerate*framerate/2;
+      W(3+i,6+j)=framerate*framerate/2;
+      W(6+i,6+j)=framerate;
+    }
+    }
+
+  initialised=false;
+}
+
+target::target(const target * toCopy){
+  initialised=toCopy->initialised;
+  H=toCopy->H;
+  K=toCopy->K;
+  W=toCopy->W;
+  phi=toCopy->phi;
+  b=toCopy->b;
+  f=toCopy->f;
+  xl=toCopy->xl;
+  xr=toCopy->xr;
+  y=toCopy->y;
+  ol2=toCopy->ol2;
+  or2=toCopy->or2;
+  oy2=toCopy->oy2;
+  pk=toCopy->pk;
+  x_old_pred=toCopy->x_old_pred;
+  x_new_pred=toCopy->x_new_pred;
+  U_new_pred=toCopy->U_new_pred;
+  z_old_pred=toCopy->z_old_pred;
+  z_new_pred=toCopy->z_new_pred;
+  sigma=toCopy->sigma;
+  psi=toCopy->psi;
+}
+
+//Update local position of target
+void target::update_local(const double xl_in, const double xr_in,const double y_in)
+{
+  if (xl==2048 || xr==2048){
+      return;
+  }
+  xl=xl_in;
+  xr=xr_in;
+  y=y_in;
+  
+  pk(0)=(b*(xl+xr))/(2*(xl-xr));
+  pk(1)=(b*y)/(xl-xr);
+  pk(2)=(b*f)/(xl-xr);
+}
+
+// Update global position of target and returns position in vector x_meas and uncertainty in matrix sigma_meas
+void target::update_global(Vector3d x_meas, Matrix3d sigma_meas){
+
+  sigma=sigma_meas;
+  x_measure=x_meas;
+  // Next prediction generated based on previous prediction and measurement
+  if (initialised){
+    z_old_pred=phi*z_new_pred; // Predite State
+    U_old_pred=phi*U_new_pred*phi.transpose()+W; // Prediction Noise
+    K=U_old_pred*H.transpose()*((H*U_old_pred*H.transpose()+sigma_meas).inverse()); // Optimal Kalman Gain
+    z_new_pred=z_old_pred+K*(x_meas-H*z_old_pred); // Updated state estimate
+    U_new_pred=U_old_pred-K*H*U_old_pred; // Updated State Covariance
+    /*std::cout << "Phi is: \n" << phi << "\n H is: \n" << H << "\nW is: \n" << W << std::endl;
+    std::cout << "x_meas is: \n" << x_meas << std::endl;
+    std::cout << "U old is: \n" << U_old_pred << std::endl;
+    printf("Old z is: %f,%f,%f         New z is: %f, %f, %f\n",z_old_pred(0),z_old_pred(1),z_old_pred(2),z_new_pred(0),z_new_pred(1),z_new_pred(2));
+    std::cout << "K is: \n" << K /*<< "\n Det of K is: \n" << K.determinant()*//* << std::endl;
+    std::cout << "U new is: \n" << U_new_pred << std::endl;*/
+
+    // First prediction generated based on uncertainty matrix and framerate
+  } else {
+    U_new_pred=Matrix<double,9,9>::Zero();
+    for (int i=0;i<3;i++){
+      for (int j=0;j<3;j++){
+	U_new_pred(i,j)=sigma_meas(i,j);
+	/*U_new_pred(i+3,j)=sigma_meas(i,j)/framerate;
+	U_new_pred(i,j+3)=sigma_meas(i,j)/framerate;
+	U_new_pred(i+3,j+3)=sigma_meas(i,j)*2/(framerate*framerate);*/
+      }
+    }
+
+    U_old_pred=U_new_pred;
+
+    z_new_pred=Matrix<double,9,1>::Zero();
+    for (int i=0;i<3;i++){
+      z_new_pred(i)=x_meas(i);
+    }
+    z_old_pred=z_new_pred;
+    initialised=true;
+
+    /*std::cout << "Phi is: \n" << phi << "\n H is: \n" << H << "\nW is: \n" << W << std::endl;
+    std::cout << "x_meas is: \n" << x_meas << std::endl;
+    std::cout << "U old is: \n" << U_old_pred << std::endl;
+    printf("Old z is: %f,%f,%f         New z is: %f, %f, %f\n",z_old_pred(0),z_old_pred(1),z_old_pred(2),z_new_pred(0),z_new_pred(1),z_new_pred(2));
+    std::cout << "U new is: \n" << U_new_pred << std::endl;*/
+  }
+
+  //std::cout << "H=\n" << H << "\nU_old_pred=\n" << U_old_pred << std::endl;
+
+  x_new_pred=H*z_new_pred;
+}
+
+#endif

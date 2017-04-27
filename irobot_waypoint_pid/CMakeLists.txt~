@@ -1,0 +1,55 @@
+cmake_minimum_required(VERSION 2.8.3)
+project(irobot_waypoint_pid)
+
+## Find catkin macros and libraries
+## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
+## is used, also find other catkin packages
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  rospy
+  std_msgs
+  geometry_msgs
+  genmsg
+  actionlib_msgs
+  actionlib
+)
+
+add_action_files(DIRECTORY action FILES WaypointPID.action)
+
+## Generate added messages and services with any dependencies listed here
+generate_messages(
+  DEPENDENCIES
+  actionlib_msgs
+)
+
+catkin_package(
+  INCLUDE_DIRS include
+  LIBRARIES irobot_waypoint_pid
+  CATKIN_DEPENDS roscpp rospy std_msgs
+  CATKIN_DEPENDS actionlib_msgs
+)
+
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+)
+
+## Declare a cpp executable
+add_executable(teleop src/teleop.cpp)
+add_executable(hand2robot src/hand2robot.cpp)
+add_executable(irobot_pid src/irobot_pid.cpp)
+add_executable(WaypointPID_server src/WaypointPID_server.cpp)
+
+## Specify libraries to link a library or executable target against
+target_link_libraries(teleop
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(hand2robot
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(irobot_pid
+  ${catkin_LIBRARIES}
+)
+target_link_libraries(WaypointPID_server
+  ${catkin_LIBRARIES}
+)
+

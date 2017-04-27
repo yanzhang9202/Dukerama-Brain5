@@ -1,0 +1,14 @@
+#include <maestro_servo_driver/MaestroServerAction.h>
+#include <actionlib/server/simple_action_server.h>
+#include "maestro_serial_driver.cpp"
+
+typedef actionlib::SimpleActionServer<maestro_servo_driver::MaestroServerAction> Server;
+
+void execute(const maestro_servo_driver::MaestroServerGoalConstPtr& goal, Server* as)
+{
+    int fd = maestroConnect();
+
+    maestroSetTarget(fd, 0, goal.servo_target);
+
+    as -> setSucceeded();
+}

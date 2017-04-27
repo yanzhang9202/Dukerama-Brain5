@@ -1,0 +1,9 @@
+<launch>
+  <!-- irobot_create_2_1 -->
+  <node pkg="irobot_create_2_1" type="driver.py" name="driver" output="screen">
+  </node>
+  <param name="/robot/name" value="Brain5"/>
+  <!-- irobot_waypoint_pid -->
+  <node pkg="irobot_waypoint_pid" type="teleop" name="teleop" output="screen">
+  </node>
+</launch>

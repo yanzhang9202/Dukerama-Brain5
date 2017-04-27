@@ -1,0 +1,37 @@
+# 
+# Definition of all trackable objects
+# Identifier corresponds to Trackable ID set in Tracking Tools
+#
+rigid_bodies:
+    '1':
+        pose: Robot_1/pose
+        pose2d: Robot_1/ground_pose
+        child_frame_id: Robot_1/base_link
+        parent_frame_id: world
+        marker_1: Robot_1/marker_1/pose
+        marker_2: Robot_1/marker_2/pose
+        marker_3: Robot_1/marker_3/pose
+    '2':
+        pose: Robot_2/pose
+        pose2d: Robot_2/ground_pose
+        frame_id: Robot_2/base_link
+        parent_frame_id: world
+        marker_1: Robot_2/marker_1/pose
+        marker_2: Robot_2/marker_2/pose
+        marker_3: Robot_2/marker_3/pose
+    '10':
+        pose: Robot_3/pose
+        pose2d: Robot_3/ground_pose
+        frame_id: Robot_3/base_link
+        parent_frame_id: world
+        marker_1: Robot_3/marker_1/pose
+        marker_2: Robot_3/marker_2/pose
+        marker_3: Robot_3/marker_3/pose
+
+unidentified_markers:
+    '1':
+        pose: uniden_marker_1/pose
+    '2':
+        pose: uniden_marker_2/pose
+    '3':
+        pose: uniden_marker_3/pose

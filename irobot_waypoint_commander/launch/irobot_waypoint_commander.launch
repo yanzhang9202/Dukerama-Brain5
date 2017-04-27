@@ -1,0 +1,7 @@
+<launch>
+
+  <!-- irobot_waypoint_commander -->
+  <node pkg="irobot_waypoint_commander" type="irobot_waypoint_commander" name="irobot_waypoint_commander" output="screen">
+  </node>
+
+</launch>

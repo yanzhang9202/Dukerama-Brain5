@@ -1,0 +1,14 @@
+<launch>
+  <!-- pgrcamera_driver -->
+  <param name="/basic_camera_driver/left_cam_url" value="file://$(find pgrcamera_driver)/include/left_calib_b5.yaml" />
+  <param name="/basic_camera_driver/right_cam_url" value="file://$(find pgrcamera_driver)/include/right_calib_b5.yaml" />
+
+  <node pkg="pgrcamera_driver" type="basic_camera_driver" name="basic_camera_driver" required="true" output="screen"/>
+  
+   <node pkg="pgrcamera_driver" type="receive_pic" name="receive_pic" required="true"/>
+
+  <!-- stereo_image_proc -->
+  <param name="/stereo_image_proc/approximate_sync" value="True"/>
+  <node pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" ns="stereo" required="true"/>
+
+</launch>

@@ -1,0 +1,11 @@
+<launch>
+  <param name="/robot/name" value="Brain5"/>
+
+  <param name="/Brain5Camera/vrpn_server_ip" value="192.168.1.103"/>
+  <!-- ros_vrpn_client -->
+  <node pkg="ros_vrpn_client" type="ros_vrpn_client" name="$(optenv MYSELF Brain5Camera)" required="true"/>
+
+  <!-- inter_commu -->
+  <node pkg="inter_commu" type="test_ic_controller" name="test_ic_controller" required="true" output="screen"/>
+
+</launch>

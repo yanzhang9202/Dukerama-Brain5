@@ -1,0 +1,12 @@
+<launch>
+
+  <!--
+  <param name="/Brain5/vrpn_server_ip" value="192.168.1.103"/>
+  <node pkg="ros_vrpn_client" type="ros_vrpn_client" name="$(optenv MYSELF Brain5)" required="true" output="screen"/>
+  -->
+
+  <!-- maestro_servo_driver -->
+  <node pkg="maestro_servo_driver" type="maestro_servo_server" name="maestro_servo_server" required="true" output="screen"/>
+  <node pkg="maestro_servo_driver" type="maestro_servo_client" name="maestro_servo_client" required="true" output="screen"/>
+
+</launch>

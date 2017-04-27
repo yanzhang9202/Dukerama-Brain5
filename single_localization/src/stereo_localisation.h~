@@ -1,0 +1,41 @@
+//
+//  stereo_localisation.h
+//  
+//
+//  Created by Alex Zhu on 9/11/13.
+//
+//
+
+#ifndef ____stereo_localisation__
+#define ____stereo_localisation__
+
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core/core.hpp>
+#include <vector>
+
+#include <Eigen/Dense>
+
+//#include "Trackable.cpp"
+#include "definitions.h"
+
+#include <queue>
+#include <iostream>
+
+//#define NUM_TARGETS 1
+
+class stereo_localisation{
+
+public:
+    stereo_localisation(int n);
+    cv::Mat localise_targets(cv::Mat image_left,cv::Mat image_right);
+    std::vector<double> coords;
+//private:
+    int N;
+    int radius;
+    //std::queue<Eigen::Vector3d> positions;
+    //std::queue<Eigen::Matrix3d> rotations;
+    void get_target_coords(cv::Mat img,bool isLeft, int color,int hue1,int hue2, int param1, int param2,int sat, int val, int min_radius, int max_radius);
+};
+
+#endif /* defined(____stereo_localisation__) */

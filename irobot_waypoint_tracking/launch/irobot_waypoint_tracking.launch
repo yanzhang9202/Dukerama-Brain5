@@ -1,0 +1,7 @@
+<launch>
+
+  <!-- irobot_waypoint_tracking -->
+  <node pkg="irobot_waypoint_tracking" type="irobot_waypoint_tracking" name="irobot_waypoint_tracking" output="screen">
+  </node> 
+
+</launch>

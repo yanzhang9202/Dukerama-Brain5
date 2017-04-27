@@ -1,0 +1,21 @@
+#include "waypoint_controller.cpp"
+
+using namespace std;
+
+int main(int argc, char **argv){
+
+  ros::init(argc, argv, "test_waypoint");
+  ros::NodeHandle n;
+
+//// Define waypoint controller
+  waypoint_controller waypoint(n);  
+  
+  waypoint.waitForEnter();
+
+  waypoint.testgoWaypoint();
+
+//  while(ros::ok()){
+//  }
+
+}
+

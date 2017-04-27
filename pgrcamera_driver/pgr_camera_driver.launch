@@ -1,0 +1,9 @@
+<launch>
+  <!-- pgrcamera_driver -->
+  <param name="/brain5_camera_driver/left_cam_url" value="file://$(find pgrcamera_driver)/include/left_calib_yan.yaml" />
+  <param name="/brain5_camera_driver/right_cam_url" value="file://$(find pgrcamera_driver)/include/right_calib_yan.yaml" />
+  <param name="/robot/name" value="brain5"/>
+  <node pkg="pgrcamera_driver" type="basic_camera_driver" name="basic_camera_driver" required="true"/>
+  
+   <node pkg="pgrcamera_driver" type="receive_pic" name="receive_pic" required="true"/>
+</launch>

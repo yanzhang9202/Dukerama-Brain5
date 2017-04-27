@@ -1,0 +1,41 @@
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/svn/!svn/ver/1704/trunk/hrl/ros_vrpn_client
+END
+CMakeLists.txt
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/1375/trunk/hrl/ros_vrpn_client/CMakeLists.txt
+END
+README
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/!svn/ver/1375/trunk/hrl/ros_vrpn_client/README
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/1375/trunk/hrl/ros_vrpn_client/Makefile
+END
+install_vrpn.sh
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/1704/trunk/hrl/ros_vrpn_client/install_vrpn.sh
+END
+manifest.xml
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/1425/trunk/hrl/ros_vrpn_client/manifest.xml
+END
+svn_log
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/1375/trunk/hrl/ros_vrpn_client/svn_log
+END

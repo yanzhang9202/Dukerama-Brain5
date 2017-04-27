@@ -1,0 +1,49 @@
+#ifndef _TARGETHEADER_H_
+#define _TARGETHEADER_H_
+
+#include <Eigen/Dense>
+#include "definitions.h"
+
+using namespace Eigen;
+using namespace std;
+
+class target {
+
+ public:
+  target(float b_in, float f_in);
+  
+  bool initialised;
+
+  float b,f; // Camera Configuration
+
+  // ******** Single measuerment update ********** //
+  float xl,xr,y;
+  Vector3f pk; // Target position in relative frame
+
+  float sigma_quant;
+  Matrix3f Q; // Quantized Noise  
+
+  void update_local(float xl, float xr, float y);
+
+  // ******** Measurement history update ************//
+  std::vector<Vector3f> meas_history;
+  std::vector<Matrix3f> measCov_history;
+  std::vector<Vector3f> ftr_meas_history;
+  std::vector<Matrix3f> ftr_measCov_history;
+
+  // *********** Kalman Filter update ************ //
+  Matrix3f U_old_pred;
+  Matrix3f K;
+  Matrix3f H;
+  Matrix3f W;
+  Matrix3f phi;
+  Matrix3f z_old_pred;
+  Matrix3f z_new_pred;
+  Vector3f x_new_pred,x_measure;
+  Matrix3f U_new_pred;
+  Matrix3f sigma;
+
+  void update_global(Vector3f x_meas, Matrix3f sigma_meas);
+};
+
+#endif

@@ -1,0 +1,18 @@
+<launch>
+  <!-- irobot_create_2_1 -->
+  <node pkg="irobot_create_2_1" type="driver.py" name="driver" output="screen">
+  </node>
+
+  <!-- This launch file test if the node hand2robot correctly transform the hand's pose to robot's pose in quaternion form -->
+
+  <param name="/Brain4Camera/vrpn_server_ip" value="192.168.1.103"/>
+  <!-- ros_vrpn_client -->
+  <node pkg="ros_vrpn_client" type="ros_vrpn_client" name="$(optenv MYSELF Brain4Camera)" required="true"/>
+
+  <!-- irobot_waypoint_pid -->
+  <node pkg="irobot_waypoint_pid" type="hand2robot" name="hand2robot" required="true"/>
+
+  <!-- irobot_waypoint_pid -->
+  <node pkg="irobot_waypoint_pid" type="irobot_pid" name="irobot_pid" required="true" output="screen"/>
+
+</launch>

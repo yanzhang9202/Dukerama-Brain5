@@ -1,0 +1,76 @@
+#include "ramabot_brain.cpp"
+
+typedef actionlib::SimpleActionClient<irobot_waypoint_pid::WaypointPIDAction> Client;
+
+int main(int argc, char **argv)
+{
+  ros::init(argc, argv, "irobot_waypoint_brain");
+  ros::NodeHandle n; 
+
+  rama_commander commander;
+  rama_robot robot;
+
+  commander.loadWaypoints();
+  commander.loadTargets();
+
+  robot_state_pub = n.advertise<geometry_msgs::Point>("robot/state", 1);
+  robot_target_pub = n.advertise<geometry_msgs::Point>("robot/target", 1);
+
+  Client client("WaypointPID_server", true);
+  irobot_waypoint_pid::WaypointPIDGoal goal;
+
+  printf("Robot : Hi! Please press 'any key + enter' to start the waypoint tracking...\n");
+  robot.waitForEnter();
+
+  int robot_wpt_count = 0;
+
+  // MAIN LOOP
+  while( ros::ok() && (commander.check_all_sent()==0) ) // Check if all waypoints are sent.
+  {
+    robot.rqstWaypoints();
+
+    commander.sendWaypoints();
+
+  // Robot carry out a series of actions, PID, servo control and pgrcamera
+
+  // Tell Servo node to start, adjust base and servo position (To be finished)
+    robot.startServo();
+  // Give some time to adjust base and servo to comfortable position.
+//    ros::Duration(2.0).sleep(); 
+    if (robot_wpt_count == 0)
+    {
+      printf("Robot : Before going to the first waypoint, Wait for servo adjusting positions. Press any key + enter to continue.\n");
+      robot.waitForEnter();
+    }
+
+    // Tell WaypointPID server to go;
+    goal.waypoint = goal_msg;
+    client.waitForServer();
+    client.sendGoal(goal);
+
+    //wait for robot to go to waypoint;
+    bool finished_before_timeout = client.waitForResult(ros::Duration(15.0)); 
+    if (finished_before_timeout)
+    {
+      printf("Robot : Arrive at the %dth waypoint...\n", robot_wpt_count+1);
+    }
+    else
+    {ROS_INFO("Robot : Fail to get to the %dth waypoint...\n", robot_wpt_count+1);}
+
+    //  Robot should take images here and record its hand position from VRPN; //
+
+    printf("Pretend you are taking image here... Press any key + enter to finish shooting...\n");
+    robot.waitForEnter();
+
+    // ----------------------------To be finished-----------------------------//
+
+    robot.sendWptDone();
+
+    commander.nextWaypoints();
+    robot_wpt_count++;
+  }
+
+  printf("Commander : Job finished!\n");
+
+  return 0;
+}

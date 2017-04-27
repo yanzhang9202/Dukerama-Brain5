@@ -1,0 +1,735 @@
+#ifndef ___NBV_CONTROLLER_CPP___
+#define ___NBV_CONTROLLER_CPP___
+
+#include "nbv_controller.h"
+
+using namespace Eigen;
+using namespace std;
+
+nbv_controller::nbv_controller(ros::NodeHandle &nh, int num_t, int ds, string obj){
+	downsample = (float)ds;
+	cout << "Initialize controller..." << endl;
+	getCameraCalib();
+	getCameraUncertainty();
+	
+	num_targets = num_t;
+	targets.reserve(num_targets);
+	for (int i = 0; i < num_targets; i++){
+		targets.push_back(new target());
+	}
+
+	vrpn_sub = nh.subscribe<geometry_msgs::TransformStamped>("Brain5Camera/pose", 1, &nbv_controller::vrpnCallback, this);
+
+	supreme = "supreme";
+	central = "central";
+	choice = obj;
+	count_meas = 0;
+
+	it_max = (int)(1/Dt);
+	relgains << 1, 0, 0, 0, 1, 0, 0, 0, 5 ;
+	val = 0;
+	dh << 0, 0, 0;
+
+	phi.resize(3, num_targets);
+	pen_phi.resize(3, num_targets);
+	p.resize(3, num_targets);
+	// Image width setting (for FoV constraint)
+	wi = 50;
+	cout << "FoV constraint: width of image is set to be " << wi << "..." << endl << endl;
+
+//	dphix_dpx = Matrix<float, 1, num_targets>::Zero();
+//	dphix_dpy = Matrix<float, 1, num_targets>::Zero();
+//	dphix_dpz = Matrix<float, 1, num_targets>::Zero();
+//	dphiy_dpx = Matrix<float, 1, num_targets>::Zero();
+//	dphiy_dpy = Matrix<float, 1, num_targets>::Zero();
+//	dphiy_dpz = Matrix<float, 1, num_targets>::Zero();
+//	dphiz_dpx = Matrix<float, 1, num_targets>::Zero();
+//	dphiz_dpy = Matrix<float, 1, num_targets>::Zero();
+//	dphiz_dpz = Matrix<float, 1, num_targets>::Zero();
+
+//	dpen_phi = Matrix<float, 3, num_targets>::Zero();
+
+	dphix_dpx.resize(1, num_targets); dphix_dpx.setZero();
+	dphix_dpy.resize(1, num_targets); dphix_dpy.setZero();
+	dphix_dpz.resize(1, num_targets); dphix_dpz.setZero();
+	dphiy_dpx.resize(1, num_targets); dphiy_dpx.setZero();
+	dphiy_dpy.resize(1, num_targets); dphiy_dpy.setZero();
+	dphiy_dpz.resize(1, num_targets); dphiy_dpz.setZero();
+	dphiz_dpx.resize(1, num_targets); dphiz_dpx.setZero();
+	dphiz_dpy.resize(1, num_targets); dphiz_dpy.setZero();
+	dphiz_dpz.resize(1, num_targets); dphiz_dpz.setZero();
+
+	dpen_phi.resize(3, num_targets); dpen_phi.setZero();
+
+	e1 << 1, 0, 0;	e2 << 0, 1, 0;	e3 << 0, 0, 1;
+
+//	dphix_dr = Matrix<float, 3, num_targets>::Zero();
+//	dphiy_dr = Matrix<float, 3, num_targets>::Zero();
+//	dphiz_dr = Matrix<float, 3, num_targets>::Zero();
+	
+	dphix_dr.resize(3, num_targets); dphix_dr.setZero();
+	dphiy_dr.resize(3, num_targets); dphiy_dr.setZero();
+	dphiz_dr.resize(3, num_targets); dphiz_dr.setZero();
+
+	dpx_dR.reserve(num_targets);
+	dpy_dR.reserve(num_targets);
+	dpz_dR.reserve(num_targets);
+	
+	z.reserve(num_targets);
+
+	dphix_dR.reserve(num_targets);
+	dphiy_dR.reserve(num_targets);
+	dphiz_dR.reserve(num_targets);
+
+	penGrad = Matrix3f::Zero();
+}
+
+void nbv_controller::calcNBV(std::vector<target *> input){
+	// Update target information
+	getUpdate(input);
+
+	// Find objective target
+	findObjective();
+	cout << "The objective target is " << objective.which_target << "!" << endl << endl;
+
+	Vector3f p_star;
+	// Update NBV in relative frame
+	p_star = getNBVinRF();
+
+	// Update NBV in global frame
+	getNBVinGF(p_star);
+
+	count_meas++;
+}
+
+// ********************** Private *********************** //
+void nbv_controller::getUpdate(std::vector<target *> input){
+	targets = input;
+	ros::spinOnce();
+	for (int ii = 0; ii < num_targets; ii++){
+		p.col(ii) = getRelativePosition(targets[ii]->ftr_meas_history[count_meas]);
+		z[ii] = targets[ii]->ftr_meas_history[count_meas];
+	}
+}
+
+void nbv_controller::vrpnCallback(const geometry_msgs::TransformStamped msg){
+  {
+    q_h[0] =msg.transform.rotation.x;
+    q_h[1] =msg.transform.rotation.y;
+    q_h[2] =msg.transform.rotation.z;
+    q_h[3] =msg.transform.rotation.w;
+  
+    Eigen::Quaternionf quat_h(q_h[3], q_h[0], q_h[1], q_h[2]);
+
+    Rot_h2w = quat_h.matrix();
+    Rot_c2w = Rot_h2w * Rot_c2h;
+    Rot_w2c = Rot_c2w.transpose();
+
+    ohand_world[0] = msg.transform.translation.x;
+    ohand_world[1] = msg.transform.translation.y;
+    ohand_world[2] = msg.transform.translation.z;
+
+    ocam_world = Rot_h2w * ocam_hand + ohand_world;
+  }
+}
+
+void nbv_controller::getCameraCalib(){
+	int line, col;
+	ifstream file;
+  	file.open("/home/dukerama/hydro_catkin/src/irobot_nbv_test/include/Camera_Config/set 6 Oct 26.txt");
+    
+  	if (!file.is_open()){
+    		cout << "No 'set 6 Oct 26.txt' file in the /include/Camera_Config folder!\n";
+    		return; 
+  	}
+
+  	char dummy[64];
+
+  	for(line = 0; line < 15; line++){
+    		if (line == 0 || line == 2 || line == 4 || line == 6 || line == 11) {  file >> dummy; }
+    
+    		if (line == 1) {  file >> flength; }
+
+    		if (line == 3){
+       			for (col = 0; col < 2; col++) { file >> cc_left(col); }
+    		}
+
+    		if (line == 5){
+       			for (col = 0; col < 2; col++) { file >> cc_right(col); }
+    		}
+
+    		if (line == 7){
+       			int mline = 0;
+       			for (line == 7; line < 11; line++){
+          			for (col = 0; col < 4; col++) { file >> Hc2m_left(mline, col); }
+          			mline++;
+       			}
+       			line = 10;
+     		}
+
+    		if (line == 12){
+       			int mline = 0;
+       			for (line == 12; line < 16; line++){
+          			for (col = 0; col < 4; col++) { file >> Hc2m_right(mline, col); }
+         			mline++;
+       			}
+     		}
+  	}
+  	file.close();
+
+  	for (line = 0; line < 3; line++){
+      		for (col = 0; col < 3; col++){
+          		Rot_c2h(line, col) = Hc2m_left(line, col);
+      		}
+  	}
+
+  	VectorXf temp(4);
+  	temp = Hc2m_left.col(3) - Hc2m_right.col(3);
+  	bline = temp.norm()/1000;
+
+//  	cout << "bline: " << bline << "(m)"<< endl << endl;
+//  	cout << "flength: " << flength << "(pixel)" << endl << endl;
+//  	cout << "cc_left: " << cc_left(0) << " " << cc_left(1) << endl << endl;
+//  	cout << "cc_right: " << cc_right(0) << " " << cc_right(1) << endl << endl;
+//  	cout << "Hc2m_left: " << "\n" << Hc2m_left << endl << endl;
+//  	cout << "Hc2m_right: " << "\n" << Hc2m_right << endl << endl;
+
+  	for (line = 0; line < 3; line++){
+      		ocam_hand(line) = (Hc2m_left(line, 3) + Hc2m_right(line, 3))/2/1000;
+  	}
+
+  	flength = flength/downsample;
+//  	cout << "flength: " << flength << " by down-sample rate " << downsample << endl << endl;
+	cc_left = cc_left/downsample;	cc_right = cc_right/downsample;
+//  	cout << "cc_left: " << cc_left(0) << " " << cc_left(1) << " by down-sample rate " << downsample << endl << endl;
+//  	cout << "cc_right: " << cc_right(0) << " " << cc_right(1) << " by down-sample rate " << downsample << endl << endl;		
+}
+
+void nbv_controller::getCameraUncertainty(){
+	int line, col;
+	ifstream file;
+  	file.open("/home/dukerama/hydro_catkin/src/irobot_nbv_test/include/Camera_Config/Q.txt");
+    
+  	if (!file.is_open()){
+    		cout << "No 'Q' file in the /include/Camera_Config folder!\n";
+    		return; 
+  	}
+
+	for (line = 0; line < 3; line++){
+		for (col = 0; col < 3; col++){
+			file >> Q(line, col);	
+		}
+	}
+	file.close();
+//	cout << "Uncertainty matrix on image plane: " << endl;
+//	cout << Q << endl;
+}
+
+Eigen::Vector3f nbv_controller::getRelativePosition(Eigen::Vector3f global){
+	Eigen::Vector3f relative;
+	relative = Rot_w2c * (global - ocam_world);
+	return relative;
+}
+
+// ********************* Find objectives ********************* //
+void nbv_controller::findObjective(){
+	ros::spinOnce();
+	if (choice.compare(supreme) == 0){
+		cout << "You choose supreme objective for NBV!" << endl << endl;
+		float max_trace = targets[0]->ftr_measCov_history[count_meas].trace();
+		which_target = 0;
+//		cout << "num_targets: " << num_targets << endl;
+//		cout << targets[0]->ftr_measCov_history[count_meas].trace() << endl;
+		for (int i = 0; i < num_targets; i++){
+			if (targets[i]->ftr_measCov_history[count_meas].trace() > max_trace){
+				max_trace = targets[i]->ftr_measCov_history[count_meas].trace();
+				which_target = i;
+			}
+		}
+		objective.Uk = targets[which_target]->Uk_pred_history[count_meas];
+		objective.xk = targets[which_target]->ftr_meas_history[count_meas];
+		objective.pk = getRelativePosition(objective.xk);
+		objective.which_target = which_target + 1;
+	} else if (choice.compare(central) == 0){
+		cout << "You choose central objective for NBV!" << endl << endl;
+		Matrix3f sum; sum = Matrix3f::Zero();
+		Vector3f ssum; ssum = Vector3f::Zero();
+		Vector3f sssum; sssum = Vector3f::Zero();
+		for (int i = 0; i < num_targets; i++){
+			sum = sum + targets[i]->Uk_pred_history[count_meas];
+			ssum = ssum + getRelativePosition(targets[i]->ftr_meas_history[count_meas]);
+			sssum = sssum + targets[i]->ftr_meas_history[count_meas];
+		}
+		objective.Uk = sum/(float)num_targets;
+		objective.xk = sssum/(float)num_targets;
+		objective.pk = ssum/(float)num_targets;
+		objective.which_target = -1;
+		
+	} else {
+		cout << "Error: Illegal objective choice!" << endl << endl;
+	}
+}
+
+// ******************* NBV control in Relative Frame ********************** //
+Vector3f nbv_controller::getNBVinRF(){
+	ros::spinOnce();
+	// Rotate target pk and Uk to relative frame
+	Vector3f p_star = objective.pk;
+	Matrix3f V = Rot_w2c * objective.Uk * Rot_w2c.transpose();
+
+//	// Check input
+//	cout << "V: " << endl << V << endl << endl;
+
+	cout << "Initial in relative control frame: p_star = [ " << p_star.transpose() << "... " << endl; 
+
+	p_star = relUpdate(p_star, V);
+
+	cout << "Update in relative control frame: p_star = [ " << p_star.transpose() << "... " << endl;
+	
+	return p_star;
+}
+
+Vector3f nbv_controller::relUpdate(Vector3f p_star, Matrix3f V){
+	// Save old relative vector
+	Vector3f p_old = p_star;
+
+	// Initialize iteration of gradient descent
+	int rel_iter = 1;
+	bool indicate = false;
+	Vector3f p_star_new, dist;
+	float val_old;
+	float rel_backtrack = 0;
+
+	// Start iteration
+	cout << "Start relative coordinates gradient descent." << endl << endl;
+	while (!indicate){
+		// Evaluate function value and gradient direction
+		evalFuncGrad(p_star, V, true);
+		val_old = val;
+
+//		// Check val and dh
+//		cout << "val: " << val << endl << endl;
+//		cout << "dh: " << dh.transpose() << endl << endl;
+//		indicate = true;
+
+		// Try going the full delta in the gradient direction
+		p_star_new = p_star - delta * relgains * dh / dh.norm();
+
+		// Evaluate function again
+		evalFuncGrad(p_star_new, V, false);
+
+		rel_backtrack = 0;
+		while( val > val_old){
+			if (rel_backtrack == 0) {
+				cout << "Doing backtrack in gradient descent in relative frame" << endl << endl;
+			}
+			p_star_new = p_star - pow(0.9, rel_backtrack) * delta * dh / dh.norm();
+			evalFuncGrad(p_star_new, V, false);
+			if (rel_backtrack > 20){
+				cout << "Relative update couldn't improve." << endl << endl;
+				indicate = true;
+				break;
+			}
+			rel_backtrack++;
+		}
+		p_star = p_star_new;
+		rel_iter++;
+		dist = p_old - p_star;
+		if (dist.norm() > delta - tol){
+			p_star = p_old + delta * (p_star - p_old) / dist.norm();
+			indicate = true;
+		}
+		if (rel_iter >= it_max){
+			indicate = true;
+			cout << "Relative update timed out!" << endl << endl;
+		}
+	}
+	return p_star;
+}
+
+void nbv_controller::evalFuncGrad(Vector3f p, Matrix3f V, bool eval_dh){
+	Vector3f pixels = measure_pixel(p);
+	Matrix3f mCov = observeCov(pixels);
+	Matrix3f temp = V.inverse() + mCov.inverse();
+	Matrix3f Xi = temp.inverse();
+
+//	// Check result
+//	cout << "pixels: " << pixels.transpose() << endl << endl;
+//	cout << "mCov: " << endl << mCov << endl << endl;
+//	cout << "Xi: " << endl << Xi << endl << endl;
+
+	// Trace or Frobenius norm of new covariance matrix
+	val = Xi.trace();
+//	val = Xi.norm();
+
+	if (eval_dh){
+		// Calcuate dh
+		dh = calc_DJQJ_p(p, mCov, Xi, pixels);
+	}	
+}
+
+Eigen::Vector3f nbv_controller::measure_pixel(Eigen::Vector3f p){
+	Vector3f pixels;
+	pixels[0] = flength * (p[0] + 0.5) / p[2];
+	pixels[1] = flength * (p[0] - 0.5) / p[2];
+	pixels[2] = flength * p[1] / p[2];
+	return pixels;
+}
+
+Eigen::Matrix3f nbv_controller::observeCov(Eigen::Vector3f pixels){
+	Matrix3f J, U;
+	float xl, xr, y, d, invSqd;
+	xl = pixels[0];	xr = pixels[1]; y = pixels[2];
+	d = xl - xr;
+	invSqd = 1 / pow(d, 2);
+
+	float dpx_dxl, dpx_dxr, dpx_dy, dpy_dxl, dpy_dxr, dpy_dy, dpz_dxl, dpz_dxr, dpz_dy;
+	dpx_dxl = invSqd * (-xr);
+	dpx_dxr = invSqd * xl;
+	dpz_dxl = invSqd * (-flength);
+	dpz_dxr = invSqd * (flength);
+	dpx_dy = 0;
+	dpz_dy = 0;
+	dpy_dxl = invSqd * (-y);
+	dpy_dxr = invSqd * (y);
+	dpy_dy = invSqd * d;
+	J << dpx_dxl, dpx_dxr, dpx_dy, dpy_dxl, dpy_dxr, dpy_dy, dpz_dxl, dpz_dxr, dpz_dy;
+	U = J * Q * J.transpose();
+	return U;
+}
+
+Eigen::Vector3f nbv_controller::calc_DJQJ_p(Eigen::Vector3f p, Eigen::Matrix3f mCov, Eigen::Matrix3f Xi, Vector3f pixels){
+	Matrix3f M1 = mCov.inverse() * Xi * Xi * mCov.inverse();
+	
+	// Calculate derivative of xl, xr, y on px, py, pz;
+	float dxl_dpx, dxl_dpy, dxl_dpz, dxr_dpx, dxr_dpy, dxr_dpz, dy_dpx, dy_dpy, dy_dpz;
+	dxl_dpx = flength / p[2];
+	dxl_dpz = -flength * (p[0] + bline/2) / pow(p[2], 2);
+	dxr_dpx = flength / p[2];
+	dxr_dpz = -flength * (p[0] - bline/2) / pow(p[2], 2);
+	dxl_dpy = 0;
+	dxr_dpy = 0;
+	dy_dpx = 0;
+	dy_dpy = flength / p[2];
+	dy_dpz = -p[1] * flength / pow(p[2], 2);
+
+	// Calculate derivative of JQJ' on xl, xr, y;
+	float xl, xr, y, d, bonsqrd;
+	xl = pixels[0]; xr = pixels[1]; y = pixels[2]; d = xl - xr; bonsqrd = bline / pow(d, 2);
+
+	Matrix3f M, J, dJ_dxl, dJ_dxr, dJ_dy, dJQJ_xl, dJQJ_xr, dJQJ_y, temp;
+
+	M << -xr, xl, 0, -y, y, d, -flength, flength, 0;
+	J = bonsqrd * M;
+
+	temp << 0, bonsqrd, 0, 0, 0, bonsqrd, 0, 0, 0;
+	dJ_dxl = temp - bonsqrd / d * M;
+
+	temp << -bonsqrd, 0, 0, 0, 0, -bonsqrd, 0, 0, 0;
+	dJ_dxr = temp + bonsqrd / d * M;
+
+	temp << 0, 0, 0, -bonsqrd, bonsqrd, 0, 0, 0, 0;
+	dJ_dy = temp;
+
+	dJQJ_y = dJ_dy * Q * J.transpose() + J * Q * dJ_dy.transpose();
+	dJQJ_xl = dJ_dxl * Q * J.transpose() + J * Q * dJ_dxl.transpose();
+	dJQJ_xr = dJ_dxr * Q * J.transpose() + J * Q * dJ_dxr.transpose();
+
+	// Calculate derivative of JQJ' on px, py, pz;
+	Matrix3f dJQJ_px, dJQJ_py, dJQJ_pz;
+	dJQJ_px = dJQJ_xl * dxl_dpx + dJQJ_xr * dxr_dpx + dJQJ_y * dy_dpx;
+	dJQJ_py = dJQJ_xl * dxl_dpy + dJQJ_xr * dxr_dpy + dJQJ_y * dy_dpy;
+	dJQJ_pz = dJQJ_xl * dxl_dpz + dJQJ_xr * dxr_dpz + dJQJ_y * dy_dpz;
+
+	// Calculate derivative of h on px, py, pz;
+	Vector3f dh;
+	float dh_px, dh_py, dh_pz;
+	temp = M1 * dJQJ_px;	dh_px = temp.trace();
+	temp = M1 * dJQJ_py;	dh_py = temp.trace();
+	temp = M1 * dJQJ_pz;	dh_pz = temp.trace();
+	dh << dh_px, dh_py, dh_pz;
+	
+	return dh;
+}
+
+// *********************** NBV in Global control frame *********************** //
+void nbv_controller::getNBVinGF(Vector3f p_star){
+	ros::spinOnce();
+	glob_setup(p_star);
+
+	glblUpdate();
+}
+
+void nbv_controller::glob_setup(Vector3f p_star){
+	Vector3f p_old, r, temp;
+	Matrix3f R;
+	p_old = objective.pk;
+	r = ocam_world;
+	R = Rot_c2w;
+
+	goal_r = r + R * (p_old - p_star);
+	temp = objective.xk - goal_r;
+	newDir = temp / temp.norm();
+	oldDir << 0, 0, 1;
+
+	cout << "goal r is : " << goal_r.transpose() << endl << endl;
+	cout << "current R is : " << R << endl << endl;
+}
+
+void nbv_controller::glblUpdate(){
+	Vector3f r, r_old, temp, r_upd;
+	Matrix3f R, R_upd;
+	r = ocam_world;
+	R = Rot_c2w;
+	r_old = r;
+	
+	bool indicate = false;
+	int glob_iter = 0;
+	float val_old;
+	while(!indicate) {
+		glbl(r, R, true);
+		val_old = val_glob;		
+		glbl(r_upd, R_upd, false);
+
+		cout << "r_old : " << r_old << endl << endl;
+		cout << "R_old : " << R << endl << endl;
+		cout << "r_upd : " << r_upd << endl << endl;
+		cout << "R_upd : " << R_upd << endl << endl;
+		cout << "val_old : " << val_old << endl << endl;
+		cout << "val_new : " << val_glob << endl << endl;
+		
+		// Check if gradient descent decrease the value of objective function
+		if (val_glob < val_old){
+			r = r_upd;
+			R = R_upd;
+		} else {
+			cout << "Gradient descent increase the value of objective function at iteration " << glob_iter << " !" << endl << endl;
+			indicate = true;
+		}
+
+		glob_iter++;
+
+		temp = r - r_old;
+		if (temp.norm() > delta){
+			cout << "Global update travelled max distance of delta(" << delta << ")." << endl << endl;
+			indicate = true;
+		} else if (val < tol) {
+			cout << "Global objective function descents to zero..." << endl << endl;
+			indicate = true;
+		} else if (glob_iter > it_max){
+			cout << "Global update timed out!" << endl << endl;
+			indicate = true;
+		}
+	}
+
+	r_new = r;
+	R_new = R;
+
+	cout << "new r is : " << goal_r.transpose() << endl << endl;
+	cout << "new R is : " << R << endl << endl;
+}
+
+void nbv_controller::glbl(Vector3f r, Matrix3f R, bool eval_grad){
+	float objective_only, penalty_contribution;
+
+	// Compute the objective function value
+	posegoal(r, goal_r, eval_grad);
+	rotgoal(R, newDir, oldDir, eval_grad);
+	objective_only = gTrade * val_obj_r + (1-gTrade) * val_obj_R;
+
+	// Compute the penalty and barrier function values
+	penfunc(r, R, eval_grad);
+	barr(eval_grad);
+	penalty_contribution = pen / num_targets * pen_phi.sum();
+
+	// Compute their weighted sum
+	val_glob = objective_only + penalty_contribution;
+
+	// Compute the gradient and new r and R if requested
+	if (eval_grad){
+		// Compute new r
+		phi_chain2global(R);
+		calc_grad_fov_r();
+		dpsihat_dr = dpsi_dr + pen / num_targets * grad;
+		r_upd = r - gTrade * Dt * dpsihat_dr;
+		
+		// Compute new R using 4th order Runge Kutta Update to rotation
+		Matrix3f temp;
+		k1 = gradflow(r, R);
+		k2 = gradflow(r, R + h / 2 * k1);
+		k3 = gradflow(r, R + h / 2 * k2);
+		k4 = gradflow(r, R + h * k3);	
+		R_upd = R - (1 - gTrade) * (h/6) * (k1 + 2 * k2 + 2 * k3 + k4);
+
+		// Project R to closest SO3 matrix
+		if (R_upd.determinant() > 1 + sqrt(std::numeric_limits<float>::epsilon()) || R_upd.determinant() < 1 - sqrt(std::numeric_limits<float>::epsilon())){
+			JacobiSVD<MatrixXf> svd(R_upd, ComputeThinU | ComputeThinV);
+			R_upd = svd.matrixU() * svd.matrixV().transpose();
+		}
+	}
+}
+
+// Global control frame: calculate derivative on R
+Matrix3f nbv_controller::gradflow(Vector3f r, Matrix3f R){
+	calc_dpsihat_dR(r, R);
+	return -R * dpsihat_dR;
+}
+
+void nbv_controller::calc_dpsihat_dR(Vector3f r, Matrix3f R){
+	penGrad = Matrix3f::Zero();
+	// Compute derivative of px, py, pz on R
+	for (int ii = 0; ii < num_targets; ii++){
+		dpx_dR[ii] = 0.5 * (R.transpose() * (z[ii] - r) * e1.transpose() - e1 * (z[ii] - r).transpose() * R);
+		dpy_dR[ii] = 0.5 * (R.transpose() * (z[ii] - r) * e2.transpose() - e2 * (z[ii] - r).transpose() * R);
+		dpz_dR[ii] = 0.5 * (R.transpose() * (z[ii] - r) * e3.transpose() - e3 * (z[ii] - r).transpose() * R);
+	}
+
+	// Compute derivate of phix, phiy, phiz on R
+	for (int ii = 0; ii < num_targets; ii++){
+		dphix_dR[ii] = dphix_dpx(0, ii) * dpx_dR[ii] + dphix_dpy(0, ii) * dpy_dR[ii] + dphix_dpz(0, ii) * dpz_dR[ii];
+		dphiy_dR[ii] = dphiy_dpx(0, ii) * dpx_dR[ii] + dphiy_dpy(0, ii) * dpy_dR[ii] + dphiy_dpz(0, ii) * dpz_dR[ii];
+		dphiz_dR[ii] = dphiz_dpx(0, ii) * dpx_dR[ii] + dphiz_dpy(0, ii) * dpy_dR[ii] + dphiz_dpz(0, ii) * dpz_dR[ii];
+	}
+
+	// Compute the penalty function gradients
+	for (int ii = 0; ii < num_targets; ii++){
+		penGrad = penGrad + dpen_phi(0, ii) * dphix_dR[ii] + dpen_phi(1, ii) * dphiy_dR[ii] + dpen_phi(2, ii) * dphiz_dR[ii];
+	}
+
+	if (pen / num_targets * penGrad.lpNorm<Infinity>() < 0.5 * dpsi_dR.lpNorm<Infinity>()){
+		penGrad = Matrix3f::Zero();
+	}
+
+	if (pen / num_targets * penGrad.lpNorm<Infinity>() > dpsi_dR.lpNorm<Infinity>()){
+		cout << "FoV gradient on R is huge compared to objective of realizing NBV!" << endl << endl;
+	}
+
+	dpsihat_dR = dpsi_dR - pen / num_targets * penGrad;
+
+	if (dpsihat_dR.lpNorm<Infinity>() < std::numeric_limits<float>::epsilon()){
+		cout << "Gradient of Rotation matrix is nearly zero!" << endl << endl;
+		dpsihat_dR = Matrix3f::Zero();
+	}
+
+	if (checkSkewSymm(dpsihat_dR)){
+		dpsihat_dR(0, 1) = -dpsihat_dR(1, 0);
+		dpsihat_dR(2, 0) = -dpsihat_dR(0, 2);
+		dpsihat_dR(2, 1) = -dpsihat_dR(1, 2);
+	}
+
+	if (dpsihat_dR.diagonal().norm() > tol){
+		dpsihat_dR(0, 0) = 0;
+		dpsihat_dR(1, 1) = 0;
+		dpsihat_dR(2, 2) = 0;
+		cout << "Gradient of rotation has some nonzero diagonals" << endl << endl;
+	}
+}
+
+bool nbv_controller::checkSkewSymm(Matrix3f M){
+	float temp1, temp2, temp3;
+	temp1 = fabs(M(0,1) + M(1,0));
+	temp2 = fabs(M(2,0) + M(0,2));
+	temp3 = fabs(M(2,1) + M(1,2));
+	if (temp1 > tol || temp2 > tol || temp3 > tol){
+		cout << "Gradient of rotation is not skew symmetric!" << endl << endl;		
+		return true;
+	} else {
+		return false;
+	}
+}
+
+// Global control frame: calculate derivative on r
+void nbv_controller::posegoal(Vector3f r, Vector3f goal_r, bool eval_grad){
+	Vector3f temp;
+	temp = goal_r - r;
+	val_obj_r = pow(temp.norm(), 2);
+	// Compute the derivative of objective on r
+	if (eval_grad){
+		dpsi_dr = 2 * (r - goal_r);
+	}
+}
+
+void nbv_controller::rotgoal(Matrix3f R, Vector3f y, Vector3f n, bool eval_grad){
+	Vector3f temp;
+	temp = R.transpose() * y - n;
+	val_obj_R = pow(temp.norm(), 2);
+	// Compute the derivative of objective on R
+	if (eval_grad){
+		dpsi_dR = temp * y.transpose() * R - R.transpose() * y * temp.transpose();
+	}
+}
+
+void nbv_controller::penfunc(Vector3f r, Matrix3f R, bool eval_grad){
+	MatrixXf temp;
+	temp.resize(1, num_targets); temp.setZero();
+	temp = (wi * p.row(2)).array() - bline * flength;
+	phi.row(0) = temp.array() * temp.array() / (4 * pow(flength, 2)) - p.row(0).array() * p.row(0).array();
+	temp = wi * p.row(2);
+	phi.row(1) = temp.array() * temp.array() / (4 * pow(flength, 2)) - p.row(1).array() * p.row(1).array();
+	phi.row(2) = p.row(2).array() * p.row(2).array() - pow(bline * flength / wi, 2);
+
+	if (eval_grad){
+		dphix_dpx = -2 * p.row(0);
+		dphix_dpz = 2 * (((wi * p.row(2)).array() - bline * flength) / (2 * flength)) * (wi / (2 * flength));
+		dphiz_dpx.setZero();
+		dphiz_dpz = 2 * p.row(2);
+		dphix_dpy.setZero();
+		dphiz_dpy.setZero();
+		dphiy_dpx.setZero();
+		dphiy_dpy = -2 * p.row(1);
+		dphiy_dpz = 2 * wi * p.row(2) / (2 * flength);
+	}
+}
+
+void nbv_controller::barr(bool eval_grad){
+	pen_phi = 1 / phi.array();
+	if (eval_grad){
+		dpen_phi = -1 / (phi.array() * phi.array());
+	}
+}
+
+void nbv_controller::phi_chain2global(Matrix3f R){
+	Vector3f dp_drx, dp_dry, dp_drz;
+	// Compute derivative of px, py, pz w.r.t. rx, ry, rz in global coordinates
+	dp_drx = -R.transpose() * e1;
+	dp_dry = -R.transpose() * e2;
+	dp_drz = -R.transpose() * e3;
+	// Compute derivative of phix, phiy, phiz w.r.t. rx, ry, rz in global coordinates
+	dphix_dr.row(0) = dphix_dpx * dp_drx[0] + dphix_dpy * dp_drx[1] + dphix_dpz * dp_drx[2];
+	dphix_dr.row(1) = dphix_dpx * dp_dry[0] + dphix_dpy * dp_dry[1] + dphix_dpz * dp_dry[2];
+	dphix_dr.row(2) = dphix_dpx * dp_drz[0] + dphix_dpy * dp_drz[1] + dphix_dpz * dp_drz[2];
+
+	dphiy_dr.row(0) = dphiy_dpx * dp_drx[0] + dphiy_dpy * dp_drx[1] + dphiy_dpz * dp_drx[2];
+	dphiy_dr.row(1) = dphiy_dpx * dp_dry[0] + dphiy_dpy * dp_dry[1] + dphiy_dpz * dp_dry[2];
+	dphiy_dr.row(2) = dphiy_dpx * dp_drz[0] + dphiy_dpy * dp_drz[1] + dphiy_dpz * dp_drz[2];
+
+	dphiz_dr.row(0) = dphiz_dpx * dp_drx[0] + dphiz_dpy * dp_drx[1] + dphiz_dpz * dp_drx[2];
+	dphiz_dr.row(1) = dphiz_dpx * dp_dry[0] + dphiz_dpy * dp_dry[1] + dphiz_dpz * dp_dry[2];
+	dphiz_dr.row(2) = dphiz_dpx * dp_drz[0] + dphiz_dpy * dp_drz[1] + dphiz_dpz * dp_drz[2];
+}
+
+void nbv_controller::calc_grad_fov_r(){
+	gradx[0] = (dpen_phi.row(0).array() * dphix_dr.row(0).array()).matrix().sum();
+	gradx[1] = (dpen_phi.row(0).array() * dphix_dr.row(1).array()).matrix().sum();
+	gradx[2] = (dpen_phi.row(0).array() * dphix_dr.row(2).array()).matrix().sum();
+
+	grady[0] = (dpen_phi.row(1).array() * dphiy_dr.row(0).array()).matrix().sum();
+	grady[1] = (dpen_phi.row(1).array() * dphiy_dr.row(1).array()).matrix().sum();
+	grady[2] = (dpen_phi.row(1).array() * dphiy_dr.row(2).array()).matrix().sum();
+
+	gradz[0] = (dpen_phi.row(2).array() * dphiz_dr.row(0).array()).matrix().sum();
+	gradz[1] = (dpen_phi.row(2).array() * dphiz_dr.row(1).array()).matrix().sum();
+	gradz[2] = (dpen_phi.row(2).array() * dphiz_dr.row(2).array()).matrix().sum();
+	
+	grad = gradx + grady + gradz;
+
+	if (pen / num_targets * grad.norm() < 0.5 * dpsi_dr.norm()){
+		grad = Vector3f::Zero();
+	}
+
+	if (pen / num_targets * grad.norm() > 2.0 * dpsi_dr.norm()){
+		cout << "FoV gradient on r is huge compared to objective of realizing NBV!" << endl << endl;
+	}
+}
+
+#endif

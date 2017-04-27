@@ -1,0 +1,9 @@
+<launch>
+
+  <!-- maestro_servo_driver -->
+  <node pkg="maestro_servo_driver" type="waypoint_servo_node" name="waypoint_servo_node" required="true" output="screen"/>
+
+  <!-- maestro_servo_driver -->
+  <node pkg="maestro_servo_driver" type="maestro_servo_publisher" name="maestro_servo_publisher" required="true"/>
+
+</launch>

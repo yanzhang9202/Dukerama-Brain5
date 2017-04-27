@@ -1,0 +1,53 @@
+#include "detector_lib.cpp"
+#include "localizer_lib.cpp"
+#include "nbv_controller_2D.cpp"
+
+using namespace cv;
+using namespace std;
+
+int main(int argc, char **argv){
+  ros::init(argc, argv, "test_nbv");
+  ros::NodeHandle n;
+
+//// Create two windows to show image
+  namedWindow("right",CV_WINDOW_NORMAL);
+  namedWindow("left",CV_WINDOW_NORMAL);
+
+//// Declare robot name, server name and image topics' names
+  string robotname, server_name, topic_name_left, topic_name_right;
+  n.getParam("/robot/name", robotname); 
+  server_name = robotname+"/take_pic";
+  topic_name_left = robotname+"/left/image_rect_color";		// Take raw images or rectified images
+  topic_name_right = robotname+"/right/image_rect_color";
+
+//// Load target information, down-sampling rate, circle finder resolution
+  int downsample = 24;
+  float decimal = 0;
+
+//// Simulation or Experiment
+  bool sim = true;
+
+//// Define detector, localizer and controller
+  nbv_detector detector(n, topic_name_left, topic_name_right, server_name, downsample, decimal, sim);
+
+  nbv_localizer localizer(n, downsample, detector.num_targets, sim);
+
+  string obj("supreme");
+  nbv_controller controller(n, detector.num_targets, downsample, obj);
+
+//  detector.checkCamera();
+
+  int tst_count = 0;
+//// Take images and detect targets
+  while (ros::ok() && tst_count < 1){
+	// Take stereo images and detect targets
+	detector.detectTargets();
+
+	// Calculate single measurements and covariance matrix, KF filtering
+	localizer.calcMeasurements(detector.target_ctr_left, detector.target_ctr_right);
+
+	// NBV controller, decide where to go next
+	controller.calcNBV(localizer.targets);
+	tst_count++;
+  }
+}

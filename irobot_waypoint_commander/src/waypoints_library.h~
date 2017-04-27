@@ -1,0 +1,14 @@
+#ifndef __WAYPOINTS_LIB_H__
+#define __WAYPOINTS_LIB_H__
+
+#include <ros/ros.h>
+#include <iostream>
+#include <fstream>
+
+std::string filename_wps = "/home/dukerama/hydro_catkin/src/waypoints_tracking/include/Waypoints.txt";
+
+int num_wps = 2;
+double Waypoints[num_wps][3];
+
+
+#endif  // __WAYPOINTS_LIB_H__

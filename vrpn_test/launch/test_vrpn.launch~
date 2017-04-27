@@ -1,0 +1,10 @@
+<launch>
+
+  <param name="/test/vrpn_server_ip" value="192.168.1.103"/>
+  <!-- ros_vrpn_client -->
+  <node pkg="ros_vrpn_client" type="ros_vrpn_client" name="$(optenv MYSELF Brain5Camera)" required="true"/>
+
+  <!-- vrpn_test -->
+  <node pkg="vrpn_test" type="vrpn_test" name="vrpn_test" required="true" output="screen"/>
+
+</launch>

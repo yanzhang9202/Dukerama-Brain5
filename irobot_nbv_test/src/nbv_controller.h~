@@ -1,0 +1,100 @@
+#ifndef ___NBV_CONTROLLER_H___
+#define ___NBV_CONTROLLER_H___
+
+#include <ros/ros.h>
+#include <iostream>
+#include <geometry_msgs/TransformStamped.h>
+#include <Eigen/Dense>
+//#include <Eigen/SVD>
+#include <string.h>
+#include <math.h>
+
+#include "target.cpp"
+#include "nbv_def.h"
+
+class nbv_controller{
+private:
+	void getUpdate(std::vector<target *> input);
+	void getCameraCalib();
+	void getCameraUncertainty();
+	void vrpnCallback(const geometry_msgs::TransformStamped msg);
+	void findObjective();
+	Eigen::Vector3f getRelativePosition(Eigen::Vector3f global);
+
+	std::vector<target *> targets;
+	Eigen::Matrix3f Uk;
+	Eigen::Vector3f pk;
+
+	float downsample;
+	float flength, bline;
+	Eigen::Vector2f cc_left, cc_right;
+	Eigen::Matrix4f Hc2m_left, Hc2m_right;
+	Eigen::Matrix3f Rot_c2h, Rot_h2w, Rot_c2w, Rot_w2c;
+	Eigen::Vector4f q_h;
+	Eigen::Vector3f ocam_hand, ohand_world, ocam_world;
+	Eigen::Matrix3f Q;
+
+	ros::Subscriber vrpn_sub;
+	int num_targets;
+	Objective objective;
+	string supreme, central, choice;
+	int which_target;
+	int count_meas;
+
+	// NBV in relative control frame
+	Eigen::Vector3f getNBVinRF();
+	Eigen::Vector3f relUpdate(Eigen::Vector3f p_star, Eigen::Matrix3f V);
+	void evalFuncGrad(Eigen::Vector3f p, Eigen::Matrix3f V, bool eval_dh);
+	Eigen::Vector3f measure_pixel(Eigen::Vector3f p);
+	Eigen::Matrix3f observeCov(Eigen::Vector3f pixels);
+	Eigen::Vector3f calc_DJQJ_p(Eigen::Vector3f p, Eigen::Matrix3f mCov, Eigen::Matrix3f Xi, Vector3f pixels);
+
+	int it_max;
+	Eigen::Matrix3f relgains;
+	float val;
+	Eigen::Vector3f dh;
+
+	// NBV in global control frame
+	void getNBVinGF(Eigen::Vector3f p_star);
+	void glob_setup(Eigen::Vector3f p_star);
+	void glblUpdate();
+	void glbl(Eigen::Vector3f r, Eigen::Matrix3f R, bool eval_grad);
+	Eigen::Matrix3f gradflow(Eigen::Vector3f r, Eigen::Matrix3f R);
+	void calc_dpsihat_dR(Eigen::Vector3f r, Eigen::Matrix3f R);
+	bool checkSkewSymm(Eigen::Matrix3f M);
+	void posegoal(Eigen::Vector3f r, Eigen::Vector3f goal_r, bool eval_grad);
+	void rotgoal(Eigen::Matrix3f R, Eigen::Vector3f y, Eigen::Vector3f n, bool eval_grad);
+	void penfunc(Eigen::Vector3f r, Eigen::Matrix3f R, bool eval_grad);
+	void barr(bool eval_grad);
+	void phi_chain2global(Eigen::Matrix3f R);
+	void calc_grad_fov_r();
+
+	Eigen::Vector3f goal_r, newDir, oldDir;
+	float val_obj_r, val_obj_R, val_glob;
+	Eigen::VectorXf phi, pen_phi;
+	Eigen::Vector3f dpsi_dr;
+	Eigen::Matrix3f dpsi_dR;
+	Eigen::MatrixXf p;
+	float wi;
+	Eigen::MatrixXf dphix_dpx, dphix_dpy, dphix_dpz, dphiy_dpx, dphiy_dpy, dphiy_dpz, dphiz_dpx, dphiz_dpy, dphiz_dpz;
+	Eigen::MatrixXf dpen_phi;
+	Eigen::Vector3f e1, e2, e3;
+	Eigen::MatrixXf dphix_dr, dphiy_dr, dphiz_dr;
+	Eigen::Vector3f gradx, grady, gradz, grad;
+	Eigen::Vector3f dpsihat_dr;
+	std::vector<Matrix3f> dpx_dR, dpy_dR, dpz_dR;
+	std::vector<Vector3f> z;
+	std::vector<Matrix3f> dphix_dR, dphiy_dR, dphiz_dR;
+	Eigen::Matrix3f penGrad;
+	Eigen::Matrix3f dpsihat_dR;
+	Eigen::Matrix3f k1, k2, k3, k4;
+
+public:
+	nbv_controller(ros::NodeHandle &nh, int num_t, int ds, string obj);
+	void calcNBV(std::vector<target *> input);
+
+	Eigen::Vector3f r_new;
+	Eigen::Matrix3f R_new;
+};
+
+#endif

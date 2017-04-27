@@ -1,0 +1,60 @@
+#include <cv_bridge/cv_bridge.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core/core.hpp>
+#include "pgr_camera.cpp"
+
+int main(int argc, char** argv){
+  ros::init(argc,argv,"basic_camera_driver");
+  ros::NodeHandle n_priv;
+//  ros::NodeHandle n_left("stereo/left");
+//  ros::NodeHandle n_right("stereo/right");
+
+  std::string robotname, temp, result;
+  n_priv.getParam("/robot/name", robotname);
+
+  temp = "/left"; result = robotname+temp;
+  ros::NodeHandle n_left(result.c_str());
+  temp = "/right"; result = robotname+temp;
+  ros::NodeHandle n_right(result.c_str());
+
+  std::cout << "ROS started" << std::endl;
+  pgr_camera cam(n_priv,n_left,n_right);
+  std::cout << "Object created" << std::endl;
+  int error=0;
+  error=cam.connect_cameras();
+  if (error==-1)
+    {
+      std::cout << "Error in connecting to cameras, exiting..." << std::endl;
+      return -1;
+    }
+
+  std::cout << "Cameras connected" << std::endl;
+
+  error=cam.start_cameras();
+  if (error==-1)
+    {
+      std::cout << "Error in starting cameras, exiting..." << std::endl;
+      return -1;
+    }
+
+  std::cout << "Cameras started" << std::endl;
+  
+  error=cam.start_stream();
+  if (error==-1)
+    {
+      std::cout << "Error in starting image stream, exiting..." << std::endl;
+      return -1;
+    }
+  std::cout <<"Stream finished" << std::endl;
+
+  error=cam.disconnect_cameras();
+  if (error==-1)
+    {
+      std::cout << "Error in disconnecting cameras, exiting..." << std::endl;
+      return -1;
+    }
+
+  std::cout << "Cameras disconnected" << std::endl;
+  return 0;
+}

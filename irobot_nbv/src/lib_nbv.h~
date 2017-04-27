@@ -1,0 +1,91 @@
+#ifndef ___LIB_NBV_H____
+#define ___LIB_NBV_H____
+
+#include <ros/ros.h>
+#include <iostream>
+#include <fstream>
+
+#include <string>
+#include <Eigen/Dense>
+#include <geometry_msgs/TransformStamped.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core/core.hpp>
+
+#include "definitions.h"
+#include "target.cpp"
+
+ros::Subscriber robot_vrpn_sub;
+
+Eigen::VectorXf q_h(4), ocam_hand(3), ocam_world(3), ohand_world(3);
+Eigen::Matrix3f Rot_h2w, Rot_c2h, Rot_c2w, Rot_w2c;
+
+float rot_norm, rot_fov_norm;
+
+struct CircleCtr{
+  cv::Mat img_thred;
+  cv::Mat img_mask;
+  cv::Mat ctr;
+};
+
+// *********** Class ************ //
+class rama_robot
+{
+  public:
+    rama_robot();
+
+    CircleCtr ctr_left, ctr_right;
+    float xl, xr, yl, yr;
+
+    void waitForEnter();
+    void detectCircle(cv::Mat image_left, cv::Mat image_right);
+    void loadConfig();
+    void update_meas();
+    void update_NBV();
+
+  private:
+    int fx;
+    int fy;
+    bool disp_raw_img;
+    bool disp_thred_img;
+    bool draw_circle_ctr;
+
+    std::vector<target *> targets;
+    std::vector<Matrix3f> sigma_meas;
+    std::vector<Vector3f> x_meas;
+
+    cv::Mat downsample(cv::Mat image);
+    CircleCtr findCircle(cv::Mat image);
+    Eigen::Matrix3f calc_J(float xl, float xr, float y);
+    Eigen::Matrix3f calc_sigma(int target_num,float xl, float xr, float y);
+
+    float unknown_noise_std;
+    Eigen::Matrix3f unknown_sigma;
+
+    int max_count;
+    float max_val;
+
+    // Calculate next target position in Relative Camera Frame
+    Eigen::Matrix3f dJQJT_dxl, dJQJT_dxr, dJQJT_dy;
+
+    Eigen::Vector3f calc_next_position(int target_num);
+    void update_dJQJT_dj(Vector3f pk,int target_num);
+    Eigen::Vector3f calc_gradient(int target_num, const Vector3f & p_old);
+    Eigen::Matrix3f calc_xi(int target_num, float xl, float xr, float y);
+    float calc_dh_dpj(int target_num,const Vector3f d_dpj, Vector3f pk);
+
+    // Calculate next robot position and orientation in the Global Frame
+    Eigen::Vector3f pk_next, position_target;
+    Eigen::Matrix3f rotation_target,rotation_i;
+    
+    void euler_rk_update();
+    Eigen::Vector3f calc_D_psi_r();
+    Eigen::Matrix3f calc_D_psi_R(const Matrix3f rotation);
+    Eigen::Vector3f calc_fov_grad_r(const int i,const int j);
+    Eigen::Matrix3f calc_fov_grad_R(const int i,const int j, const Matrix3f rotation);
+
+};
+
+void vrpnCallback(const geometry_msgs::TransformStamped msg);
+
+#endif

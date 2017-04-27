@@ -1,0 +1,38 @@
+#ifndef ___PID_CONTROLLER_H____
+#define ___PID_CONTROLLER_H____
+
+#include <iostream>
+
+#include <Eigen/Dense>
+
+float cutoff_frequency = -1.0;
+
+class pid_controller
+{
+  public:
+    pid_controller(float, float, float, float, float, float);
+    void clearhistory();
+    void setError(float EstError);
+    float computePID();
+
+  private:
+    float error;
+    float Kp;
+    float Ki;
+    float Kd;
+    double prev_time;
+    float delta_t;
+    float error_integral;
+    float anti_w;
+    float ul, ll;
+    Eigen::VectorXf error_list(3);
+    Eigen::VectorXf filtered_error(3);
+    Eigen::VectorXf error_deriv(3);
+    Eigen::VectorXf filtered_error_deriv(3);
+    int loop_counter;
+    float tolerance;
+    float u;
+};
+
+
+#endif

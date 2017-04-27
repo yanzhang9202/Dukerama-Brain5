@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/dukerama/hydro_catkin/src/robot_mover/build/devel/setup.sh

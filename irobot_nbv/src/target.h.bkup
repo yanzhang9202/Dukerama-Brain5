@@ -1,0 +1,38 @@
+#ifndef _TARGETHEADER_H_
+#define _TARGETHEADER_H_
+
+#include <Eigen/Dense>
+
+using namespace Eigen;
+using namespace std;
+
+class target {
+ public:
+  //double b,f;
+  bool initialised;
+  Vector3d x_old_pred;
+  Matrix<double,9,9> U_old_pred;
+  Matrix<double,9,3> K;
+  Matrix<double,3,9> H;
+  Matrix<double,9,9> W;
+  Matrix3d Q;
+  Matrix<double,9,9> phi;
+  Matrix<double,9,1> z_old_pred;
+  Matrix<double,9,1> z_new_pred;
+  target(double b, double f,double framerate_in);
+  target(const target* toCopy);
+  double b,f,framerate;
+  double xl,xr,y;
+  double ol2;
+  double or2;
+  double oy2;
+  Vector3d pk;
+  Vector3d x_new_pred,x_measure;
+  Matrix<double,9,9> U_new_pred;
+  Matrix3d sigma;
+  Matrix3d psi;
+  void update_local(double xl, double xr, double y);
+  void update_global(Vector3d x_meas, Matrix3d sigma_meas);
+};
+
+#endif

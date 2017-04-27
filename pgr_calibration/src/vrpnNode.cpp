@@ -1,0 +1,63 @@
+//
+//  vrpnNode.cpp
+//  
+//
+//  Created by Alex Zhu on 9/11/13.
+//
+//
+
+#ifndef ___vrpnNode_cpp
+#define ___vrpnNode_cpp
+
+#include "vrpnNode.h"
+#include <geometry_msgs/TransformStamped.h>
+
+vrpnNode::vrpnNode(ros::NodeHandle n,CameraTrackable* object, std::string myself){
+  trackable=object;
+  std::string trackable1="/"+myself+"/pose";
+  vrpn_tracker=n.subscribe<geometry_msgs::TransformStamped>(trackable1,1,&vrpnNode::update_position,this);
+}
+                            
+bool vrpnNode::isUpdated(){
+    return pos_updated;
+}
+                             
+void vrpnNode::update_position(const geometry_msgs::TransformStamped msg){
+  Eigen::Vector3d shift,pos_in,position;
+  Eigen::Vector4d quaternion;
+  Eigen::Matrix3d rotation,rotation_transform,rectification_matrix,rectification_transform;
+    
+    pos_updated=true;
+    pos_in(0) = msg.transform.translation.x;
+    pos_in(1) = msg.transform.translation.y;
+    pos_in(2) = msg.transform.translation.z;
+
+    quaternion(0)=msg.transform.rotation.x;
+    quaternion(1)=msg.transform.rotation.y;
+    quaternion(2)=msg.transform.rotation.z;
+    quaternion(3)=msg.transform.rotation.w;
+
+    double b=msg.transform.rotation.y;//y and z unflipped.
+    double c=msg.transform.rotation.z;
+
+    double a=msg.transform.rotation.x;
+    double d=msg.transform.rotation.w;
+    
+    
+    rotation(0,0)=1-2*b*b-2*c*c;
+    rotation(0,1)=(2*a*b-2*c*d);
+    rotation(0,2)=2*a*c+2*b*d;
+    rotation(1,0)=(2*a*b+2*c*d);
+    rotation(1,1)=(1-2*a*a-2*c*c);
+    rotation(1,2)=(2*b*c-2*a*d);
+    rotation(2,0)=2*a*c-2*b*d;
+    rotation(2,1)=(2*b*c+2*a*d);
+    rotation(2,2)=1-2*a*a-2*b*b;
+
+    ros::Time stamp=msg.header.stamp;
+
+    position=pos_in;//+rotation*shift;
+    trackable->setOrientation(stamp,position,rotation,quaternion);
+}
+
+#endif

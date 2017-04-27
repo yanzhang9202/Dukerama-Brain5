@@ -1,0 +1,10 @@
+<launch>
+
+  <param name="/Brain8Camera/vrpn_server_ip" value="192.168.1.103"/>
+  <!-- ros_vrpn_client -->
+  <node pkg="ros_vrpn_client" type="ros_vrpn_client" name="$(optenv MYSELF Brain8Camera)" required="true"/>
+  
+  <!-- quatTest -->
+  <node pkg="pgr_calibration" type="quatTest" name="quatTest" required="true"/>
+
+</launch>

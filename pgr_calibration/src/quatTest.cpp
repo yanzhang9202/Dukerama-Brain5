@@ -1,0 +1,70 @@
+#include "iostream"
+#include "ros/ros.h"
+#include "std_msgs/String.h"
+#include <geometry_msgs/TransformStamped.h>
+#include <Eigen/Dense>
+#include "fstream"
+
+std::ofstream outfile("/home/dukerama/catkin_ws/src/pgr_calibration/include/positions/Quats.txt");
+
+void waitFor(unsigned int secs){
+    unsigned int retTime;
+      retTime = time(0) + secs;
+        while (time(0) < retTime);
+}
+
+
+void chatterCallback(const geometry_msgs::TransformStamped msg)
+{
+	Eigen::Vector3d pos_raw;
+	Eigen::Vector4d quatRaw;
+
+
+
+
+    pos_raw(0) = msg.transform.translation.x;
+    pos_raw(1) = msg.transform.translation.y;
+    pos_raw(2) = msg.transform.translation.z;
+ 
+    quatRaw(0) =msg.transform.rotation.x;
+    quatRaw(1) =msg.transform.rotation.y;
+    quatRaw(2) =msg.transform.rotation.z;
+    quatRaw(3) =msg.transform.rotation.w;
+
+ 
+
+ROS_INFO("raw Vrpn Translation: x = [%f]", pos_raw(0));
+ROS_INFO("raw Vrpn Translation: y = [%f]", pos_raw(1));
+ROS_INFO("raw Vrpn Translation: z = [%f]", pos_raw(2));
+ROS_INFO("-----'---------------------'---------");
+ROS_INFO("\n");
+//this is the quaternion
+ROS_INFO("I heard: w = [%f]", quatRaw(3));
+ROS_INFO("I heard: x = [%f]", quatRaw(0));
+ROS_INFO("I heard: y = [%f]", quatRaw(1));
+ROS_INFO("I heard: z = [%f]", quatRaw(2));
+
+
+    for (int i=0;i<3;i++){
+	 outfile << pos_raw(i) << " ";
+    }
+    for (int i=0;i<4;i++){
+	 outfile << quatRaw(i) << " ";
+    }
+    outfile << "\n";
+
+waitFor(1);
+}
+
+int main(int argc, char **argv)
+{
+	ros::init(argc,argv, "listener");
+	ros::NodeHandle n;
+  //ros::Rate loop_rate(10);
+  ros::Subscriber sub = n.subscribe("/Brain8Camera/pose", 1, chatterCallback);
+  
+ros::spin();
+
+return 0;
+
+}

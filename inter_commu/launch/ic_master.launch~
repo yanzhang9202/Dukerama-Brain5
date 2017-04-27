@@ -1,0 +1,7 @@
+<launch>
+  <param name="/robot/name" value="Brain5"/>
+
+  <!-- inter_commu -->
+  <node pkg="inter_commu" type="inter_commu" name="Brain5_inter_commu" required="true" output="screen"/>
+
+</launch>

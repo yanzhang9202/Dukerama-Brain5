@@ -1,0 +1,19 @@
+<launch>
+
+  <param name="/Brain5Camera/vrpn_server_ip" value="192.168.1.103"/>
+  <!-- ros_vrpn_client -->
+  <node pkg="ros_vrpn_client" type="ros_vrpn_client" name="$(optenv MYSELF Brain5Camera)" required="true"/>
+
+    <!-- irobot_create_2_1 -->
+  <node pkg="irobot_create_2_1" type="driver.py" name="driver" output="screen">
+  </node>
+
+  <!-- irobot_waypoint_pid -->
+  <node pkg="irobot_waypoint_pid" type="teleop" name="teleop" output="screen">
+  </node>
+
+  <!-- maestro_servo_driver -->
+  <node pkg="maestro_servo_driver" type="maestro_servo_server" name="maestro_servo_server" required="true"/>
+  <node pkg="maestro_servo_driver" type="maestro_servo_client" name="maestro_servo_client" required="true" output="screen"/>
+
+</launch>
